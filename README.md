@@ -52,10 +52,10 @@ dsh plugin --profile web add .
 ### 从 GitHub（本仓库）
 
 ```bash
-dsh plugin --profile web add github:Stellearn/deepseek-style-theme
+dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 ```
 
-> 本插件是纯 JS 且 `lib/` 已提交到仓库，Git 安装**无需构建**——不会触发 pnpm 的 `prepare`/`allowBuilds` 授权流程，一次 `add` 即可生效。每个版本对应的 `tgz` 归档附在 [GitHub Releases](https://github.com/Stellearn/deepseek-style-theme/releases) 页面。
+> 本插件是纯 JS 且 `lib/` 已提交到仓库，Git 安装**无需构建**——不会触发 pnpm 的 `prepare`/`allowBuilds` 授权流程，一次 `add` 即可生效。每个版本对应的 `tgz` 归档附在 [GitHub Releases](https://github.com/Lichtspur/deepseek-style-theme/releases) 页面。
 
 ### 从本地 tgz（发布前 / 离线环境）
 
