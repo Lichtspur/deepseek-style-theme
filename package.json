@@ -1,8 +1,7 @@
 {
   "name": "@dsh-external/dsh-deepseek-style-theme",
-  "description": "DeepSeek official-home style theme: fluid particle background, glass sidebar, glass composer, frosted header, and DeepSeek brand link for the dsh web GUI",
-  "version": "1.30.0",
-  "private": true,
+  "description": "DeepSeek official-home style theme: fluid particle background, glass sidebar, glass composer, frosted header, running-subagent progress panel, and DeepSeek brand link for the dsh web GUI",
+  "version": "1.37.3",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -10,6 +9,12 @@
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -17,8 +22,9 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-ui-theme",
-        "@deepseek-ai/dsh-client-ui-slots",
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection"
       ],
       "platform": "web"
     }
@@ -26,5 +32,8 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }
