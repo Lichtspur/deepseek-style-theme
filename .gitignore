@@ -4,3 +4,4 @@ node_modules/
 dsh-external-*/
 releases/
 .aw-work/
+.npm-cache-tmp/
