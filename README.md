@@ -42,6 +42,8 @@
 
 前置要求：`node` 与 `pnpm`（`dsh plugin` 命令是 pnpm 的转发器，二者需在 PATH 中）。安装后重启 web 应用（`dsh web`）即可生效。
 
+> **安装属性（第三方）**：本插件是第三方适配的皮肤插件，**不是 DeepSeek 官方插件**。所有安装方式（本地源码 / GitHub / 本地 tgz）默认都作为**第三方包**装入 web profile 的 `node_modules`（真实目录，`file:` 依赖）并登记进 `dsh.profile.bundles`——**绝不写入或链接官方 dsh 安装目录**（如全局 CLI 的 `node_modules`，官方升级会清空其中的第三方包）。若因旧版链式安装导致插件消失/失效，重跑一次 `dsh plugin --profile web add <源>` 即会以独立目录重建。
+
 ### 从本地源码（开发模式）
 
 在插件源码根目录执行：
@@ -56,7 +58,7 @@ dsh plugin --profile web add .
 dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 ```
 
-> 本插件是纯 JS 且 `lib/` 已提交到仓库，Git 安装**无需构建**——不会触发 pnpm 的 `prepare`/`allowBuilds` 授权流程，一次 `add` 即可生效。每个版本对应的 `tgz` 归档附在 [GitHub Releases](https://github.com/Lichtspur/deepseek-style-theme/releases) 页面。
+> 本插件是纯 JS 且 `lib/` 已提交到仓库，Git 安装**无需构建**——不会触发 pnpm 的 `prepare`/`allowBuilds` 授权流程，一次 `add` 即可生效。GitHub 安装的包同样默认落在 profile 第三方插件区（独立目录），不会进入官方 dsh 安装目录。每个版本对应的 `tgz` 归档附在 [GitHub Releases](https://github.com/Lichtspur/deepseek-style-theme/releases) 页面。
 
 ### 从本地 tgz（发布前 / 离线环境）
 
