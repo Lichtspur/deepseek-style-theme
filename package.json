@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-deepseek-style-theme",
   "description": "DeepSeek official-home style theme: fluid particle background, glass sidebar, glass composer, frosted header, running-subagent progress panel, and DeepSeek brand link for the dsh web GUI",
-  "version": "1.38.8",
+  "version": "1.38.9",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

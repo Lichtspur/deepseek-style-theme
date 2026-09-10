@@ -8,7 +8,8 @@
 - **玻璃拟态**：侧边栏、会话卡片、输入框半透明填充 + 毛玻璃
 - **明暗双主题**：深色通过 `body[data-ds-dark-theme]` 切换
 - **品牌细节**：胶囊按钮、渐变主按钮、圆角卡片
-- **标题栏**：默认透明，悬停变毛玻璃
+- **标题栏**：默认透明，悬停变毛玻璃；栏内按钮统一为真圆角（覆盖产品全局 corner-shape:superellipse 造成的方角观感），会话标题小胶囊化
+- **悬停动画**：中/E 悬停上浮 + 品牌色辉光，短标签「中/E」平滑展开为「中文/EN」（max-width 过渡，非 display 硬切）；「打开方式」悬停上浮、展开菜单时箭头翻转
 - **DeepSeek 品牌链接**：点击侧边栏 DeepSeek 标识跳转 `https://www.deepseek.com/`
 - **轨迹视图**：「对话 / 轨迹」标签常驻，可随时切回对话
 - **运行中子代理面板**：有子代理启动时，右下角浮出玻璃面板，实时列出正在运行的子代理——名称、已运行时长、token 用量与流动进度条；点击条目直接跳转到该子代理会话，可折叠收起
@@ -63,7 +64,7 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 ### 从本地 tgz（发布前 / 离线环境）
 
 ```bash
-dsh plugin --profile web add ./releases/dsh-external-dsh-deepseek-style-theme-1.38.8.tgz
+dsh plugin --profile web add ./releases/dsh-external-dsh-deepseek-style-theme-1.38.9.tgz
 ```
 
 ### 从 npm / 其他 Git 仓库
