@@ -5,3 +5,4 @@ dsh-external-*/
 releases/
 .aw-work/
 .npm-cache-tmp/
+.aw-yml/
