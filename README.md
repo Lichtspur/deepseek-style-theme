@@ -63,7 +63,7 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 ### 从本地 tgz（发布前 / 离线环境）
 
 ```bash
-dsh plugin --profile web add ./releases/dsh-external-dsh-deepseek-style-theme-1.38.2.tgz
+dsh plugin --profile web add ./releases/dsh-external-dsh-deepseek-style-theme-1.38.3.tgz
 ```
 
 ### 从 npm / 其他 Git 仓库
