@@ -14,6 +14,7 @@
 - **轨迹视图**：「对话 / 轨迹」标签常驻，可随时切回对话
 - **运行中子代理面板**：有子代理启动时，右下角浮出玻璃面板，实时列出正在运行的子代理——名称、已运行时长、token 用量与流动进度条；点击条目直接跳转到该子代理会话，可折叠收起
 - **跨平台**：打开工作区目录时按系统调用文件管理器（Windows Explorer / macOS Finder / Linux 默认文件管理器）
+- **模型目录同步（1.40.0+）**：每次插件启动向 DeepSeek 端点询问一次模型列表，与 `llm-deepseek` 目录比对，**仅在漂移时改写**——「选择器里有哪些模型」由接口说了算（详见下文）
 - **时段提示（DSTT）**：主题模式四选一——**峰谷红蓝**（高峰鲜红、谷时段蓝）/ **峰谷红绿**（高峰鲜红、谷时段绿）/ **常态绿** / **常态蓝**；高峰窗口北京时间 9:00–12:00、14:00–18:00（周六周日全天非高峰），高峰色为鲜红 `#F5222D`
 
 ## DSTT（DeepSeekStyleTheme）设置
@@ -64,7 +65,7 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 ### 从本地 tgz（发布前 / 离线环境）
 
 ```bash
-dsh plugin --profile web add ./releases/dsh-external-dsh-deepseek-style-theme-1.39.0.tgz
+dsh plugin --profile web add ./releases/dsh-external-dsh-deepseek-style-theme-1.40.0.tgz
 ```
 
 ### 从 npm / 其他 Git 仓库
@@ -78,13 +79,31 @@ dsh plugin --profile web add @dsh-external/dsh-deepseek-style-theme
 dsh plugin --profile web add <git-url>
 ```
 
+## 模型目录同步
+
+DSH 的官方 DeepSeek 路由是**声明式**的：`listModels()` 只返回配置里的条目，**从不探测网关**（官方 README：「默认目录预注册…不探测网关可用性」）。所以接口上新出了模型、或下线了某个 id，选择器都不会自己变。本插件在**每次插件启动**（`dsh web` 启动 / 插件重载）时补这一次探测：
+
+1. 读 `llm-deepseek` 设置段的 `baseURL` / `apiKeyEnv`（自定义网关同样正确）；
+2. 按官方适配器的方式经 `credentials` 解析该密钥（缺失则该步跳过）；
+3. `GET {baseURL}/models`（5 秒超时），取接口声明的 id 列表（保持接口顺序）；
+4. 与当前目录比对：**id 列表一致就什么都不做**；有漂移才 `settings.mutate('llm-deepseek', …)` 改写 `models`。
+
+语义与边界：
+
+- **接口是权威**：接口不再列出的 id 会被移除，新 id 会被采纳（采用 replace 语义）。
+- **能力位按 id 合并**：`/models` 只给 id，给不了 `inputModalities`、`systemPromptUpdate`、上下文窗口等元数据；已存在的条目**原样保留**（用户的改动不会被覆盖），首次见到的 id 用内置映射表补齐（`deepseek-flash` → 图像输入 + `in-history`），映射表外的 id 按纯文本采纳、显示名取 id 本身。
+- **完全 best-effort**：没有 settings / 没有凭据 / 网关不可达 / 服务改名等任何异常都只是**静默跳过**，绝不影响主题本身，也绝不会写坏模型目录。
+- **只在漂移时写入**：目录一致时不产生任何设置写入事件。
+- 关闭方式：停用本插件即可（同步随之停用）；已写入的 `llm-deepseek.models` 段可自行删掉，DSH 会回落到内置默认目录。
+
 ## 必要权限
 
 - **安装期**：需要修改 web profile（`~/.dsh/profiles/web/` 的 `package.json`、`dsh.profile.bundles` 装配列表与 `node_modules`）；Git 安装还需按上文授权 pnpm 执行构建脚本。
 - **运行时（DSH 审批/沙箱）**：**不需要任何额外权限**——不注册工具、不执行模型调用、不请求审批或沙箱提升。它只是纯前端皮肤 + 一个受限 RPC 通道。
+- **运行时的唯一出网动作**：插件启动时的**模型目录同步**（1.40.0+）会读一次 `llm-deepseek` 设置段与其中的密钥引用，并向该段的 `baseURL` 发一次 `GET /models`（5 秒超时；不填则为 `https://api.deepseek.com`）。仅在 id 列表与目录不一致时才写回 `llm-deepseek.models`；离线、无密钥或服务缺失时静默跳过。不想要这个行为的话，删掉 `lib/index.js` 里的 `startCatalogSync(settingsCtx)` 调用即可。
 - **系统级副作用（唯一）**：「打开工作区目录」会调用系统文件管理器（Windows Explorer / macOS Finder / Linux 默认文件管理器）并在前台打开该目录。该 RPC 通道仅接受本机回环来源的请求，且只接受绝对路径。
-- **数据可见性**：客户端读取会话列表元数据（标题、运行状态、token 用量）仅用于页内展示「运行中子代理」面板，不上传任何外部服务器；唯一的网络跳转是点击品牌标识时打开 `deepseek.com`（显式用户操作）。
-- **配置落盘**：DSTT 主题模式选择写入 profile 的 `settings.yaml`（`deepseek-style-theme` 段）。
+- **数据可见性**：客户端读取会话列表元数据（标题、运行状态、token 用量）仅用于页内展示「运行中子代理」面板，不上传任何外部服务器；唯一的网络跳转是点击品牌标识时打开 `deepseek.com`（显式用户操作）。宿主端的唯一请求是上一条所述的 `GET {baseURL}/models`，只发往你配置的 DeepSeek 端点，不携带会话内容。
+- **配置落盘**：DSTT 主题模式选择写入 profile 的 `settings.yaml`（`deepseek-style-theme` 段）；模型目录同步在检测到漂移时写入同一文件的 `llm-deepseek` 段。
 
 ## 卸载
 
@@ -100,12 +119,15 @@ dsh plugin --profile web remove @dsh-external/dsh-deepseek-style-theme
 
 ```
 .
-├── package.json          # dsh bundle 元数据
-├── cordis.patch.yml      # insert 插件行
-├── releases/             # 发布产物（tgz 归档）
+├── package.json                    # dsh bundle 元数据
+├── cordis.patch.yml                # insert 插件行
+├── releases/                       # 发布产物（tgz 归档）
+├── tools/
+│   ├── bridge-smoke.mjs            # 宿主端私有 RPC 通道冒烟测试
+│   └── catalog-sync-smoke.mjs      # 模型目录同步冒烟测试（六种分支）
 └── lib/
-    ├── index.js          # host 端：打开工作区目录的 RPC 通道
-    └── client.js         # 主题 client 端
+    ├── index.js                    # host 端：打开工作区 RPC、DSTT 设置、模型目录同步
+    └── client.js                   # 主题 client 端
 ```
 
 ## 许可
