@@ -181,7 +181,7 @@ dsh plugin --profile web remove @dsh-external/dsh-deepseek-style-theme
 
 | 工具 | 作用 | 运行 |
 |---|---|---|
-| `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径，19 项检查） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js]` |
+| `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径 / `file.*` 端点识别与校验，24 项检查；加 `--open` 为 25 项，会真的用系统默认应用打开一个临时文件，**会在桌面弹出窗口**，默认不启用） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js] [--open]` |
 | `catalog-sync-smoke.mjs` | 模型目录同步的全部分支：一致 / 可描述漂移 / 聚合网关目录 / 只追加 / `off` / baseURL 解析顺序 / 无密钥 / 端点故障 / 命名空间未就绪 / 版本冲突（27 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
 | `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |
 | `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项、`--file-card` 时合成一张交付文件卡片并验证右键菜单（条目、定位、复制提示、预览转发、选中后关闭） | 见下 |

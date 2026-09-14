@@ -13,12 +13,21 @@
 // machine without editing this file.
 
 import { createServer } from 'node:http';
+import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { parseArgs } from 'node:util';
+
+// --open really hands a scratch file to the OS, which opens a window on this
+// desktop; the default run never launches anything.
+const { values: opts, positionals } = parseArgs({
+	options: { open: { type: 'boolean', default: false } },
+	allowPositionals: true,
+});
 
 const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
 const profile = process.env.DSH_PROFILE ?? 'web';
-const target = process.argv[2]
+const target = positionals[0]
 	?? join(home, 'profiles', profile, 'node_modules', '@dsh-external', 'dsh-deepseek-style-theme', 'lib', 'index.js');
 
 const checks = [];
@@ -200,6 +209,44 @@ check('file.reveal is a known endpoint and refuses a UNC path',
 const fileMissing = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
 	JSON.stringify({ endpoint: 'dshome/file.open', payload: {} }));
 check('file.open refuses a missing path', fileMissing.json?.ok === false, JSON.stringify(fileMissing.json?.error?.message));
+
+// A path that cannot exist reaches the real opener and must come back as a
+// reported failure rather than a hang or a false success. Windows only: that is
+// where the opener shells out to PowerShell.
+if (process.platform === 'win32') {
+	const absent = join(process.env.TEMP ?? homedir(), 'dstt-smoke-definitely-missing-' + String(process.pid) + '.md');
+	const unreachable = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
+		JSON.stringify({ endpoint: 'dshome/file.open', payload: { path: absent } }));
+	check('file.open reports failure for a nonexistent file instead of succeeding',
+		unreachable.json?.ok === false && unreachable.json?.error?.code === 'internal',
+		JSON.stringify(unreachable.json?.error?.message));
+}
+
+// Regression guard for the bug this check exists because of: Start-Process has no
+// -LiteralPath parameter, and Windows PowerShell rejects it with
+// NamedParameterNotFound — but it also exits 1 for a missing file, so the RPC
+// cannot tell the two apart. The command is asserted statically because the only
+// way to run it for real is to open a window on the user's desktop.
+try {
+	const source = await readFile(target, 'utf8');
+	check('the Windows file opener only uses Start-Process parameters that exist',
+		source.includes('Start-Process -FilePath') && !source.includes('Start-Process -LiteralPath'),
+		source.includes('Start-Process -LiteralPath') ? 'Start-Process -LiteralPath found' : 'Start-Process -FilePath in use');
+} catch (error) {
+	check('the Windows file opener only uses Start-Process parameters that exist', false, String(error.message).slice(0, 80));
+}
+
+// Opt-in: prove the happy path by really handing a file to the OS. Off by
+// default because it opens a window on the desktop running this script.
+if (opts.open) {
+	const scratch = join(process.env.TEMP ?? homedir(), 'dstt-smoke-opened-' + String(process.pid) + '.txt');
+	await writeFile(scratch, 'deepseek-style-theme bridge smoke: this file was opened by dshome/file.open.\n');
+	const opened = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
+		JSON.stringify({ endpoint: 'dshome/file.open', payload: { path: scratch } }));
+	check('file.open really opens an existing file with the default app', opened.json?.ok === true,
+		JSON.stringify(opened.json?.error?.message ?? opened.json?.value));
+	console.log('  (a window for ' + scratch + ' should have appeared; close it when you are done)');
+}
 
 await new Promise((resolve) => server.close(resolve));
 // The catalog sync schedules retries while llm-deepseek is unregistered; dispose
