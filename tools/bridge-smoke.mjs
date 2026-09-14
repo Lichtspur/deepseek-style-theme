@@ -7,13 +7,19 @@
 //
 // Usage:
 //   node tools/bridge-smoke.mjs [path/to/lib/index.js]
-// Defaults to the copy installed in the web profile (which is the one dsh loads,
-// and the only one where @deepseek-ai/* imports resolve).
+// The default target is the copy installed in a dsh profile — the one dsh loads,
+// and the only one where @deepseek-ai/* imports resolve. It is derived from
+// DSH_HOME (default ~/.dsh) and DSH_PROFILE (default web), so it works on any
+// machine without editing this file.
 
 import { createServer } from 'node:http';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
+const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
+const profile = process.env.DSH_PROFILE ?? 'web';
 const target = process.argv[2]
-	?? 'C:/Users/Nove/.dsh/profiles/web/node_modules/@dsh-external/dsh-deepseek-style-theme/lib/index.js';
+	?? join(home, 'profiles', profile, 'node_modules', '@dsh-external', 'dsh-deepseek-style-theme', 'lib', 'index.js');
 
 const checks = [];
 const check = (name, ok, detail) => {
