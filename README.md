@@ -115,6 +115,27 @@ dsh plugin --profile web remove @dsh-external/dsh-deepseek-style-theme
 - **卸载即净**：插件停用时，其注入的 CSS、粒子画布、运行中子代理面板、DOM 补丁与 RPC 通道全部自动移除，刷新页面即可，无需清理浏览器缓存。
 - **残留清理（可选）**：若 profile 的 `cordis.patch.yml` 中有 `- id: ui-skin-deepseek-style` 残留行可手动删除；`settings.yaml` 中的 `deepseek-style-theme` 配置段亦可在设置页或直接编辑文件删除。
 
+## 自测工具（开发用，不随包发布）
+
+`tools/` 里的四个脚本都在本机直接跑，**不进发布产物**（`package.json` 的 `files` 只含 `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE`）。前三个不需要浏览器、不需要网络；第四个需要自己起一个无头 Chrome。
+
+| 工具 | 作用 | 运行 |
+|---|---|---|
+| `bridge-smoke.mjs` | 宿主端私有 RPC 通道（打开工作区）的协议、围栏与错误路径 | `node tools/bridge-smoke.mjs [已安装的 lib/index.js]` |
+| `catalog-sync-smoke.mjs` | 模型目录同步的六种分支：无漂移 / 新增 / 删除 / 无密钥 / 端点故障 / 命名空间未就绪（14 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
+| `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |
+| `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项 | 见下 |
+
+```bash
+# gui-probe：先起一个监听 CDP 的 Chrome，再把 dsh 签名用的会话密钥放进环境变量
+chrome --headless=new --remote-debugging-port=9222 --user-data-dir=%TEMP%\probe about:blank
+set DSH_PROBE_SECRET=<$DSH_HOME/.credentials.yaml 里 client-connection/browser-session 的 secret>
+node tools/gui-probe.mjs --models
+# 可选：--url http://127.0.0.1:3080  --cdp http://127.0.0.1:9222
+```
+
+两个涉及密钥的工具都**只从环境变量读**，不碰凭据库，也不会把密钥打印出来；未设置时直接以 exit 2 退出并说明怎么取。
+
 ## 目录结构
 
 ```
@@ -122,9 +143,11 @@ dsh plugin --profile web remove @dsh-external/dsh-deepseek-style-theme
 ├── package.json                    # dsh bundle 元数据
 ├── cordis.patch.yml                # insert 插件行
 ├── releases/                       # 发布产物（tgz 归档）
-├── tools/
+├── tools/                          # 自测工具（不随包发布）
 │   ├── bridge-smoke.mjs            # 宿主端私有 RPC 通道冒烟测试
-│   └── catalog-sync-smoke.mjs      # 模型目录同步冒烟测试（六种分支）
+│   ├── catalog-sync-smoke.mjs      # 模型目录同步冒烟测试（六种分支）
+│   ├── catalog-sync-live.mjs       # 同步的真端点/真密钥校验（写入不落盘）
+│   └── gui-probe.mjs               # 实时页面的无头浏览器探测与像素扫描
 └── lib/
     ├── index.js                    # host 端：打开工作区 RPC、DSTT 设置、模型目录同步
     └── client.js                   # 主题 client 端
