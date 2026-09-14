@@ -6,3 +6,4 @@ releases/
 .aw-work/
 .npm-cache-tmp/
 .aw-yml/
+.tmp-inspect/
