@@ -42,6 +42,20 @@ const settings = {
 	},
 };
 
+const disposers = [];
+const settingsCtx = {
+	settings,
+	get(name) {
+		return name === 'settings' ? settings : undefined;
+	},
+	effect(callback) {
+		const dispose = callback();
+		const disposer = typeof dispose === 'function' ? dispose : () => {};
+		disposers.push(disposer);
+		return disposer;
+	},
+};
+
 const ctx = {
 	webServer: {
 		register(candidate) {
@@ -50,14 +64,16 @@ const ctx = {
 		},
 	},
 	inject(list, callback) {
-		callback({ settings });
+		callback(settingsCtx);
 	},
 	get(name) {
 		return name === 'settings' ? settings : undefined;
 	},
 	effect(callback) {
 		const dispose = callback();
-		return typeof dispose === 'function' ? dispose : () => {};
+		const disposer = typeof dispose === 'function' ? dispose : () => {};
+		disposers.push(disposer);
+		return disposer;
 	},
 };
 
@@ -110,10 +126,85 @@ check('malformed body answered with an error result', malformedJson.ok === false
 
 let fencedStatus = null;
 const fakeRes = { writeHead(status) { fencedStatus = status; }, end() {} };
-await route.handler({ socket: { remoteAddress: '10.0.0.5' }, method: 'POST' }, fakeRes);
-check('non-loopback request fenced with 403', fencedStatus === 403, String(fencedStatus));
+await route.handler({ socket: { remoteAddress: '10.0.0.5' }, method: 'POST', headers: {} }, fakeRes);
+check('non-loopback peer fenced with 403', fencedStatus === 403, String(fencedStatus));
+
+// The fence beyond the peer address. These drive the handler directly because a
+// real fetch cannot spoof Host/Origin the way an attacking page would.
+const LOOPBACK = { remoteAddress: '127.0.0.1' };
+const callHandler = async (headers, socket = LOOPBACK, body = JSON.stringify({ endpoint: 'dstt.mode.get', payload: {} })) => {
+	let status = null;
+	let payload = '';
+	const res = { writeHead(code) { status = code; }, end(chunk) { payload = chunk ?? ''; } };
+	const req = {
+		socket,
+		method: 'POST',
+		headers,
+		async *[Symbol.asyncIterator]() { yield body; },
+	};
+	await route.handler(req, res);
+	return { status, json: payload === '' ? null : JSON.parse(payload) };
+};
+
+const noHost = await callHandler({ 'content-type': 'application/json' });
+check('a request without Host is fenced', noHost.status === 403, String(noHost.status));
+
+// DNS rebinding: loopback peer, but the authority is the attacker's name.
+const rebound = await callHandler({ host: 'evil.example:3080', 'content-type': 'application/json' });
+check('a rebinding Host is fenced from a loopback peer', rebound.status === 403, String(rebound.status));
+
+// A cross-site fetch with a simple content type never preflights, so the
+// provenance headers are what stop its side effects.
+const crossSite = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'text/plain', 'sec-fetch-site': 'cross-site' });
+check('cross-site provenance is fenced', crossSite.status === 403, String(crossSite.status));
+
+const crossOrigin = await callHandler({ host: '127.0.0.1:3080', origin: 'http://evil.example', 'content-type': 'application/json' });
+check('a mismatched Origin is fenced', crossOrigin.status === 403, String(crossOrigin.status));
+
+const sameOriginWithPort = await callHandler({ host: '127.0.0.1:3080', origin: 'http://127.0.0.1:3080', 'content-type': 'application/json' });
+check('a matching Origin passes', sameOriginWithPort.status === 200 && sameOriginWithPort.json?.ok === true, JSON.stringify(sameOriginWithPort.json));
+
+const localhostName = await callHandler({ host: 'localhost:3080', origin: 'http://localhost:3080', 'content-type': 'application/json' });
+check('localhost authority passes', localhostName.status === 200, String(localhostName.status));
+
+const curlStyle = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' });
+check('an Origin-less CLI call still passes', curlStyle.status === 200 && curlStyle.json?.ok === true, String(curlStyle.status));
+
+const noContentType = await callHandler({ host: '127.0.0.1:3080' });
+check('a non-JSON content-type is refused', noContentType.status === 400 && noContentType.json?.ok === false, JSON.stringify(noContentType.json?.error?.message));
+
+// UNC: isAbsolute() is true for \\host\share on Windows, and opening it makes
+// Windows authenticate to that host.
+const unc = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
+	JSON.stringify({ endpoint: 'dshome/explorer.open', payload: { path: '\\\\attacker.example\\share' } }));
+check('a UNC path is refused', unc.json?.ok === false && unc.json.error.code === 'bad-request', JSON.stringify(unc.json?.error?.message));
+
+const forwardSlashUnc = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
+	JSON.stringify({ endpoint: 'dshome/explorer.open', payload: { path: '//attacker.example/share' } }));
+check('a forward-slash UNC path is refused', forwardSlashUnc.json?.ok === false, JSON.stringify(forwardSlashUnc.json?.error?.message));
+
+// The delivered-file gestures share the same validator. Only rejection is
+// exercised here: accepting one would really open a window on this machine.
+const fileOpenRelative = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
+	JSON.stringify({ endpoint: 'dshome/file.open', payload: { path: 'notes.md' } }));
+check('file.open is a known endpoint and refuses a relative path',
+	fileOpenRelative.json?.ok === false && /absolute local path/u.test(String(fileOpenRelative.json?.error?.message)),
+	JSON.stringify(fileOpenRelative.json?.error?.message));
+
+const fileRevealUnc = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
+	JSON.stringify({ endpoint: 'dshome/file.reveal', payload: { path: '\\\\attacker.example\\share\\notes.md' } }));
+check('file.reveal is a known endpoint and refuses a UNC path',
+	fileRevealUnc.json?.ok === false && /absolute local path/u.test(String(fileRevealUnc.json?.error?.message)),
+	JSON.stringify(fileRevealUnc.json?.error?.message));
+
+const fileMissing = await callHandler({ host: '127.0.0.1:3080', 'content-type': 'application/json' }, LOOPBACK,
+	JSON.stringify({ endpoint: 'dshome/file.open', payload: {} }));
+check('file.open refuses a missing path', fileMissing.json?.ok === false, JSON.stringify(fileMissing.json?.error?.message));
 
 await new Promise((resolve) => server.close(resolve));
+// The catalog sync schedules retries while llm-deepseek is unregistered; dispose
+// them so this script neither lingers nor leaves timers behind.
+for (const dispose of disposers) dispose();
 const failed = checks.filter((entry) => !entry.ok).length;
 console.log(failed === 0 ? '\nSMOKE OK (' + checks.length + ' checks)' : '\nSMOKE FAILED (' + failed + '/' + checks.length + ')');
 process.exitCode = failed === 0 ? 0 : 1;

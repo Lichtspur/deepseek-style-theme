@@ -21,7 +21,7 @@
 //   #    it is the `client-connection/browser-session` record's `secret` field in
 //   #    $DSH_HOME/.credentials.yaml
 //   set DSH_PROBE_SECRET=<that secret>
-//   node tools/gui-probe.mjs [--models] [--url http://127.0.0.1:3080] [--cdp http://127.0.0.1:9222]
+//   node tools/gui-probe.mjs [--models] [--file-card] [--url http://127.0.0.1:3080] [--cdp http://127.0.0.1:9222]
 //
 // The secret is read from the environment only: this tool never reads the
 // credential store itself, and it never prints the secret.
@@ -35,6 +35,7 @@ const { values } = parseArgs({
 		url: { type: 'string', default: process.env.DSH_GUI_URL ?? 'http://127.0.0.1:3080' },
 		cdp: { type: 'string', default: process.env.DSH_CDP ?? 'http://127.0.0.1:9222' },
 		models: { type: 'boolean', default: false },
+		'file-card': { type: 'boolean', default: false },
 	},
 });
 const ORIGIN = values.url.replace(/\/+$/, '');
@@ -134,6 +135,62 @@ async function openTarget() {
 }
 
 // ── in-page probes ──────────────────────────────────────────────────────────
+
+const FILE_CARD = `(async () => {
+	const PROBE = 'data-dsh-probe-card';
+	const clear = () => {
+		for (const node of document.querySelectorAll('.dshome-file-menu,.dshome-file-menu-toast')) node.remove();
+	};
+	const stale = document.querySelector('[' + PROBE + ']');
+	if (stale !== null) stale.remove();
+	clear();
+
+	// A delivered-file card shaped exactly like the product's own: the stable
+	// [data-presented-file] wrapper plus an overlay button whose title carries the
+	// absolute path (what resolveWorkspacePath() writes in the product).
+	const card = document.createElement('div');
+	card.setAttribute('data-presented-file', 'true');
+	card.setAttribute(PROBE, 'true');
+	card.style.cssText = 'position:fixed;left:20px;top:150px;width:260px;height:72px;z-index:2147483005;background:rgba(127,127,127,.12);border:1px dashed #999';
+	const overlay = document.createElement('button');
+	overlay.type = 'button';
+	overlay.setAttribute('title', 'C:\\\\probe\\\\delivered-notes.md');
+	overlay.style.cssText = 'position:absolute;inset:0;width:100%;cursor:pointer';
+	let previews = 0;
+	overlay.addEventListener('click', () => { previews += 1; });
+	card.appendChild(overlay);
+	document.body.appendChild(card);
+
+	const styleTag = document.querySelector('style[data-plugin-css$="file-card-menu.css"]') !== null;
+	const rightClick = () => {
+		overlay.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 80, clientY: 190 }));
+		return document.querySelector('.dshome-file-menu');
+	};
+	const menu = rightClick();
+	const items = menu === null ? [] : Array.from(menu.querySelectorAll('.dshome-file-menu-item')).map((node) => node.textContent.trim());
+	const placed = menu === null ? null : { left: menu.style.left, top: menu.style.top, role: menu.getAttribute('role') };
+
+	// "Copy path" — the one gesture the product has no equivalent for.
+	let toast = null;
+	if (menu !== null && items.length === 4) {
+		menu.querySelectorAll('.dshome-file-menu-item')[2].click();
+		await new Promise((resolve) => setTimeout(resolve, 250));
+		const node = document.querySelector('.dshome-file-menu-toast');
+		toast = node === null ? null : node.textContent.trim();
+	}
+
+	// "Preview in sidebar" must drive the product's own overlay button.
+	const reopened = rightClick();
+	if (reopened !== null) {
+		reopened.querySelectorAll('.dshome-file-menu-item')[3].click();
+		await new Promise((resolve) => setTimeout(resolve, 80));
+	}
+	const closedAfterPick = document.querySelector('.dshome-file-menu') === null;
+
+	card.remove();
+	clear();
+	return { styleTag, menuOpened: menu !== null, items, placed, toast, previews, closedAfterPick };
+})()`;
 
 const REPORT = `(() => {
 	const info = (element) => {
@@ -360,6 +417,23 @@ if (report.header === null) {
 		console.log('  offered: ' + JSON.stringify(await cdp.evaluate(MODEL_ROWS)));
 	}
 
+	if (values['file-card']) {
+		console.log('\n-- delivered-file card menu (synthetic card) --');
+		try {
+			await cdp.send('Browser.grantPermissions', { origin: ORIGIN, permissions: ['clipboardSanitizedWrite'] });
+		} catch (error) {
+			console.log('  (clipboard permission not granted: ' + String(error.message).slice(0, 60) + ')');
+		}
+		const card = await cdp.evaluate(FILE_CARD);
+		console.log('  style tag injected:   ' + String(card.styleTag));
+		console.log('  right-click opened:   ' + String(card.menuOpened));
+		console.log('  items:                ' + JSON.stringify(card.items));
+		console.log('  placement:            ' + JSON.stringify(card.placed));
+		console.log('  copy-path toast:      ' + JSON.stringify(card.toast));
+		console.log('  preview clicks:       ' + String(card.previews) + ' (must be 1)');
+		console.log('  closed after picking: ' + String(card.closedAfterPick));
+	}
+
 	try {
 		const top = Math.max(0, report.marks.headerBottom - 16);
 		const shot = await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: top, width: 900, height: 40, scale: 1 } });
@@ -382,4 +456,7 @@ if (report.header === null) {
 await fetch(CDP_HTTP + '/json/close/' + targetId).catch(() => {});
 cdp.socket.close();
 console.log('\n== done ==');
-process.exit(0);
+// No process.exit() here: tearing the loop down under a closing websocket
+// trips a libuv assertion (STATUS_STACK_BUFFER_OVERRUN) and turns a successful
+// probe into a non-zero exit. The loop drains on its own once the socket is
+// closed.
