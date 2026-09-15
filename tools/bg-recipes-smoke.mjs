@@ -270,6 +270,20 @@ check('the composer tilt no longer lifts, and stands down over controls (2.0.79)
 check('the send button hover changes colour and shadow only (2.0.80)',
 	source.includes('.uV2eYG_primary:hover{box-shadow:0 6px 18px')
 	&& !/\.uV2eYG_primary:hover\{[^}]*transform/.test(source));
+
+// 2.0.81 -- the flow field's storage precision, which is the "drifting squares"
+// root cause on the iGPU. Measured in headless Chrome running the SHIPPED GLSL:
+// after the same 240 passes the RGBA8 field sat at mean 0.0172 spread over 13
+// levels of the 1/255 grid, while RGBA16F decayed to mean 0.00002 continuously --
+// i.e. eight bits per channel holds energy at quantization levels ~85x the true
+// value, and those plateaus are what the domain warp paints as blocks. The change
+// probes the capability instead of assuming it, and keeps RGBA8 as the fallback.
+check('the flow field prefers half floats and falls back honestly (2.0.81)',
+	source.includes('EXT_color_buffer_float')
+	&& source.includes('const fieldFormat = floatField ? gl.RGBA16F : gl.RGBA;')
+	&& source.includes('const fieldType = floatField ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;')
+	&& source.includes('__dshomeFluidFormat')
+	&& source.includes('gl.clearColor(0, 0.5, 0.5, 1)'));
 check('the wallpaper sizing follows WallpaperStyle through CSS variables',
 	source.includes("setProperty('--dshome-custom-size'") && source.includes('--dshome-custom-size,cover')
 	&& source.includes('--dshome-custom-repeat,no-repeat'));
