@@ -1,4 +1,4 @@
-# DeepSeek Style Theme
+# DeepSeek Style Theme【在抢修】
 
 为 DeepSeek Harness Web GUI 复刻 DeepSeek 官网视觉的主题皮肤插件。
 
