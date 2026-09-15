@@ -12,6 +12,34 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v1.43.6 — 2026-09-15
+
+### 修复
+- **切「主题模式」背景不变、切深色背景还是蓝白**——两个症状同源：**背景只认 `<body>` 上的两个标记，却没有任何人在标记变化时通知它**。实测证据（无头浏览器直连实时页面，只读探测）：
+
+  ```
+  data-dshome-color   = "blue"      <- 与 :root --ds-brand(#059669) 不一致
+  data-dshome-dark    = false       <- body 属性表里根本没有这个属性
+  body attrs          = data-dshome-color=blue | style=--dsh-content-font-size:
+  body background-img = radial-gradient(... color(srgb 0.30 0.42 1.00 / 0.14) ...)  <- 蓝白
+  ```
+
+  三条独立缺陷叠在一起：
+  1. `subscribeColor` **只在颜色字符串变化时**才发通知，而它是背景重新着色的唯一入口。模式切换只要解析出同一个颜色（例：谷时段，「峰谷红蓝」与「峰谷红绿」都解析成 valley），背景就永远收不到信号。
+  2. 深色标记 `data-dshome-dark` 只有**写入方**（`createDarkSync`）没有**订阅方**。`startAmbient` 里那个 `MutationObserver` 只是"再观察一次自己"，而 `createDarkSync` 不重复写同值，于是这条监听形同虚设。
+  3. 启动竞态：背景在 `dsttSync`（异步 bridge）返回**之前**就挂载并按**默认模式**解析了颜色；模式到达后的 `dsttNotify` 只让设置面板重渲染（`DsttSection` 订阅了 `dsttSubscribe`），**颜色驱动**没有被重新锚定。
+
+  **修法**——把三处缝成一条链：
+  - `createDarkSync` 返回 `{ subscribe, dispose }`，写入标记后 `notifyDark()` 通知订阅者（记录 `lastDark`，同值不重复播报）；
+  - `startAmbient` 收敛出**单一同步入口** `syncFluid()`：从 DOM 重新推导参数、与上次序列化结果比对后才 `setParams`；同时挂在**颜色通知**、**深色通知**、`<body data-dshome-color>` 的 `MutationObserver` 三处，谁写的标记都跟得上；每条监听单独 `try`，一条抛错不影响其余（标准 §四.8）；
+  - `watchPeakHour` 在 `anchor()` 后补一次 `setTimeout(anchor, 0)`（幂等），专治启动竞态；
+  - 粒子回落路径（`startParticles`）同样接上深色通知与标记观察——它的调色板也分方案，原本有同样的毛病。
+
+### 文档
+- README 新增「鸣谢」一节，点名两个上游：[dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio)（@dhicoc：流体着色器与求解器结构、玻璃折射、光标视差、悬停倾斜的来源）与 [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background)（@HaoyueQin：液态玻璃技法来源）。
+
+---
+
 ## v1.43.5 — 2026-09-15
 
 ### 修复

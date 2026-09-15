@@ -2,6 +2,17 @@
 
 为 DeepSeek Harness Web GUI 复刻 DeepSeek 官网视觉的主题皮肤插件。
 
+## 鸣谢
+
+本插件的两块核心视觉——**流体背景**与**玻璃质感**——都不是从零写出来的，它们分别来自下面两个上游项目。没有它们，这个主题不会有现在这个样子：
+
+| 上游 | 作者 | 本插件用到了什么 |
+|---|---|---|
+| [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) | [@dhicoc](https://github.com/dhicoc) | 流体背景的**三段 GLSL 着色器**（顶点 / 流场 / 显示）是上游的逐字节副本；四分之一分辨率流场 + 双 framebuffer 乒乓的求解器结构、玻璃色散折射滤镜、光标视差、对话框悬停倾斜同样移植自上游 |
+| [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background) | [@HaoyueQin](https://github.com/HaoyueQin) | 液态玻璃配方的**技法来源**（半透明填充 + 竖向光泽 + 背板滤镜链的设计思路），本插件按自己的选择器与 `--dshome-glass-*` 变量重新表达，未复制源码 |
+
+两个项目均为 MIT 许可；完整许可原文见 [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md)，随包发布，再分发时必须保留。详细的移植范围与改写点见下文「[第三方代码与署名](#第三方代码与署名)」。
+
 ## 特性
 
 - **流体流动背景（1.42.0+）**：全屏 WebGL2 双通道流体模拟——四分之一分辨率的流场（衰减 + 带速度的指针笔刷，两个 framebuffer 乒乓）被全分辨率的域扭曲噪声渲染器采样，带旋流迭代与三色柔性混合；按钮悬停会轻推流场、点击则荡开涟漪。配色跟随 DSTT 三色令牌（峰谷红 / 谷时蓝 / 常态绿）实时重新着色，无需重挂。**无 WebGL2 时自动回落到原来的粒子背景**（粒子实现完整保留）

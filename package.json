@@ -1,7 +1,7 @@
 {
   "name": "dsh-deepseek-style-theme",
   "description": "DeepSeek official-home style theme: WebGL fluid-flow background, liquid glass with SVG edge refraction, glass sidebar and composer, frosted header, running-subagent progress panel, and DeepSeek brand link for the dsh web GUI",
-  "version": "1.43.5",
+  "version": "1.43.6",
   "type": "module",
   "keywords": [
     "deepseek",
