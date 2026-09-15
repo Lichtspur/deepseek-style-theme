@@ -112,13 +112,28 @@ dsh plugin --profile web add ./releases/dsh-deepseek-style-theme-1.43.1.tgz
 
 ### 从 npm
 
+> ⚠️ **暂时不要用这一条。** npm 上的 `latest` 仍是 **1.43.1**，而那一版带着一个致命缺陷：客户端 bundle 的注册 id 还是旧 scope 的 `@dsh-external/dsh-deepseek-style-theme`，而宿主按包名 `dsh-deepseek-style-theme` 要求它自我注册，于是 **bundle 加载成功却什么都没注册**，主题的整个客户端半边失效。1.43.3 已修复。
+>
+> 在 1.43.3 发到 npm 之前，请用上面的 **tgz 别名地址** 或 `github:` 安装。
+
 ```bash
+# 修复版发到 npm 之后可用；在那之前用 tgz 别名地址
 dsh plugin --profile web add dsh-deepseek-style-theme
 ```
 
-> 包名是**无 scope** 的 `dsh-deepseek-style-theme`。这是刻意的：`@dsh-external` 这个 scope 在 npm 上属于别人（`wulei1107`，下面挂着 `@dsh-external/dsh-vision-toolkit`），不是本项目的命名空间，也发不进去。仓库里 `cordis.patch.yml` 的 `name:` 与 `package.json` 的 `name` 必须始终一致——前者是 Loader 用来解析模块的说明符，写成解析不到的旧名会让插件装配失败。
+> 包名是**无 scope** 的 `dsh-deepseek-style-theme`。这是刻意的：`@dsh-external` 这个 scope 在 npm 上属于别人（`wulei1107`，下面挂着 `@dsh-external/dsh-vision-toolkit`），不是本项目的命名空间，也发不进去。
 >
-> npm 是最省事的安装源：不走 `git clone`（绕开代理/证书问题），也不依赖 GitHub Release 资产（绕开 `releases/latest` 那类 URL 腐烂）。插件市场的目录条目一旦写上 `npm` 字段，市场就会优先用它而不是 tarball。
+> **改名的三个引用点必须同时对齐**，缺一个都会静默失效，且失效方式各不相同：
+>
+> | 位置 | 不对齐的后果 |
+> |---|---|
+> | `package.json` 的 `name` | 包装不进去 / 目录名不符 |
+> | `cordis.patch.yml` 的 `name:` | Loader 解析不到模块，**插件装配失败** |
+> | `lib/client.js` 里 `__ModuleLoader__.load` 的 `id` | bundle 加载成功却什么都没注册，**客户端半边失效**（1.43.1 的缺陷） |
+>
+> 自查：`grep '@dsh-external' lib/` 应当**一处都不命中**；命中即漏改（有意保留的兼容位置除外）。
+>
+> npm 是最省事的安装源：不走 `git clone`（绕开代理/证书问题），也不依赖 GitHub Release 资产（绕开 `releases/latest` 那类 URL 腐烂）。
 
 ```bash
 # 或任意 git 仓库地址（若该仓库未提交构建产物，
