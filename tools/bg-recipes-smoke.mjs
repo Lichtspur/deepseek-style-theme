@@ -166,6 +166,27 @@ const commentEnd = source.indexOf('*/', commentStart);
 check('the background-recipe CSS comment holds no backtick',
 	commentStart > -1 && commentEnd > commentStart && !source.slice(commentStart, commentEnd).includes('`'));
 
+// The same trap, generalised (2.0.80). A backtick written inside ANY comment of
+// the sheet closes the CORE_CSS template early and turns the rest of it into
+// JavaScript; that has now happened four times (three of them mine), and the
+// per-comment guard above only covered one block. Walking from the opening
+// backtick to the FIRST backtick followed by a semicolon finds the intended
+// terminator (a stray one inside prose is followed by a letter or a bracket), and
+// anything stray in between is counted and fails the check.
+const CORE_OPEN = 'const CORE_CSS = `';
+const coreOpen = source.indexOf(CORE_OPEN);
+let coreTerminator = -1;
+if (coreOpen !== -1) {
+	for (let i = coreOpen + CORE_OPEN.length; i < source.length; i += 1) {
+		if (source[i] === '`' && source.slice(i, i + 2) === '`;') { coreTerminator = i; break; }
+	}
+}
+const coreStray = coreTerminator === -1
+	? -1
+	: (source.slice(coreOpen + CORE_OPEN.length, coreTerminator).match(/`/g) ?? []).length;
+check('the CORE_CSS template literal closes where it should: no stray backtick',
+	coreTerminator !== -1 && coreStray === 0, 'stray backticks before the terminator: ' + coreStray);
+
 // 2.0.74: `mediump` made the display shader's sin-hash noise collapse into
 // visible drifting squares on GPUs that implement 16-bit floats for real (an
 // Intel Arc iGPU under ANGLE/D3D11 becomes HLSL min16float, while desktop
@@ -240,6 +261,15 @@ check('the composer tilt no longer lifts, and stands down over controls (2.0.79)
 	source.includes('const TILT_SCALE = 1;')
 	&& (source.match(/closest\(TILT_INTERACTIVE\)/g) ?? []).length >= 2
 	&& source.includes('[class*="andle" i]'));
+
+// 2.0.80 -- the last geometry change this theme made to the send/stop button
+// itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is
+// enough surface motion to hand the hover to a neighbour; the product's own
+// hover on that button changes only its background. The shadow stays, the
+// transform must not come back.
+check('the send button hover changes colour and shadow only (2.0.80)',
+	source.includes('.uV2eYG_primary:hover{box-shadow:0 6px 18px')
+	&& !/\.uV2eYG_primary:hover\{[^}]*transform/.test(source));
 check('the wallpaper sizing follows WallpaperStyle through CSS variables',
 	source.includes("setProperty('--dshome-custom-size'") && source.includes('--dshome-custom-size,cover')
 	&& source.includes('--dshome-custom-repeat,no-repeat'));

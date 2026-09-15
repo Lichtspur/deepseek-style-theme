@@ -12,6 +12,28 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.80 — 2026-09-15
+
+### 修复：发送按钮的跳动（我们自己的最后一条 hover 位移）
+
+用户指出剩下的现象是**发送按钮跳动**。查下来是**我们自己的规则**：`.uV2eYG_primary:hover{…;transform:translateY(-1px)}` —— 2.0.79 只收了倾斜的 `scale(1.01)`，这条 1px 抬升还在（它来自当初给主按钮写的样式，不是产品的）。1px 的表面位移足以把 hover 交给邻居或列的宽度把手，与 2.0.79 是同一类闭环。
+
+**改法**：`.uV2eYG_primary:hover` 只留阴影，去掉 `transform`。产品自己对这颗按钮的 hover 只改背景色，所以现在**没有任何东西会在指针底下移动它**。
+
+### 顺带：把「反引号事故」的守卫扩到整张 CORE_CSS
+
+这条注释里的 `translateY(-1px)` 被我用反引号包起来，**第四次**把模板字面量提前闭合（`node --check` 当场抓到）。原来的守卫只查「背景配方」那一段注释；现在改成：从 `const CORE_CSS = \`` 走到**第一个后面紧跟分号的反引号**（那才是真正的终止符），中间再出现反引号即判失败。四次里有三次是我干的，这次守卫终于覆盖全表。
+
+### 验证
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/bg-recipes-smoke.mjs` **60/60**（新增：本版「只改颜色与阴影」断言、整表反引号守卫）；`tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**。
+- **待你复验**：`window.__dshomeBuild` = `2.0.80 no-hover-motion`；若发送按钮仍在跳，用逐帧采样看 `replaced=`（按钮节点是否被产品在流式期间反复重建）。
+
+### 退路
+`@2.0.79`、`@2.0.78`、`@2.0.77`。
+
+---
+
 ## v2.0.79 — 2026-09-15
 
 ### 抖动后半段：我们自己的倾斜（`scale(1.01)` + 在控件上也倾斜）
