@@ -20,6 +20,14 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
   - 修法两条：①把这两个 label 令牌**同时声明在本主题自己的标记下**，让背景与文字由同一个信号决定（取值与 `theme.overrideTokens()` 已装的一致，因此正常页面上重绘结果完全相同）；②`createDarkSync` **总是**监听产品自己的 `data-ds-dark-theme`，而不再只在主题服务缺失时才监听，并把产品属性作为优先判据——这样漏掉一次 `theme/change` 也能自愈，而不是一直错到下次刷新。
 - 这个缺陷同时解释了本轮开头那次"发消息后没有任何回复"的报告：症状相同，只是当时没能复现出来——它在我的探测浏览器里一直是正常的，因为那边的两个信号恰好一致。
 
+### 装配与发布（不改 `lib/` 一行）
+- **包名改为无 scope 的 `dsh-deepseek-style-theme` 并发布到 npm**。原因是插件市场的目录条目登记了一条「`/releases/latest/` + 写死版本号」的 release 资产 URL，`latest` 一走动就 404，用户一键安装失败；而市场解析安装源时 **`npm` 命中即返回、根本不看 `tarball`**，改发 npm 可一举绕开这类 URL 腐烂，同时免去 `github:` 安装要走的 `git clone`（企业 TLS 代理下必失败）。
+  - 原包名 `@dsh-external/dsh-deepseek-style-theme` **发不出去**：`@dsh-external` 这个 npm scope 属于他人（`wulei1107`），不是本项目命名空间。这也是仓库里 `.gitignore` 至今留着 `dsh-external-*/` 的历史原因。
+  - **`cordis.patch.yml` 的 `name:` 已同步改为 `dsh-deepseek-style-theme`**。它是 Loader 用来解析模块的说明符，与 `package.json` 的 `name` 必须严格一致，否则插件装配失败；而 `id: ui-skin-deepseek-style` 与 `lib/client.js` 里的 id 字面量与之无关，未改动。
+  - `package.json` 补 `keywords` / `homepage` / `repository` / `bugs`。其中 **`repository` 是功能性的**：市场目录的 npm 映射由 `awesome-dsh-plugin` 的 `probe-npm.mjs` 自动探测，它以该字段指回本仓库作为唯一凭据。
+  - 归档文件名随之变化：1.44.0 起为 `dsh-deepseek-style-theme-<版本>.tgz`（取自 `package.json` 的 `name`）。
+  - 完整取证、根因与未验证项：`docs/install-incident-report.md`。
+
 ## v1.43.0 — 2026-09-15
 
 ### 新增
@@ -221,8 +229,29 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 ## 发布流程（维护者自查）
 
 1. 改 `package.json` 的 `version` → 提交推送；
-2. `pnpm pack` 出 `dsh-external-dsh-deepseek-style-theme-<版本>.tgz`；
+2. `pnpm pack` 出 `dsh-deepseek-style-theme-<版本>.tgz`（文件名取自 `package.json` 的 `name`；1.43.1 前因包名带 scope 而形如 `dsh-external-dsh-deepseek-style-theme-<版本>.tgz`）；
 3. 发 GitHub Release，**同时附两个附件**：版本化文件名 + **稳定别名** `deepseek-style-theme.tgz`；
-4. 市场/列表条目里的 `tarball:` 只写别名地址（`…/releases/latest/download/deepseek-style-theme.tgz`），此后升版本无需改动条目。
+4. 市场/列表条目里的 `tarball:` 只写别名地址（`…/releases/latest/download/deepseek-style-theme.tgz`），此后升版本无需改动条目；
+5. 发布到 npm：`npm publish --registry=https://registry.npmjs.org`（本机 `~/.npmrc` 指向镜像，镜像不能发布，故须显式指定官方源）。
 
 > ⚠️ 别把版本号写进 `/releases/latest/download/` 的文件名——`latest` 指向最新 Release，文件名钉死旧版本号，一发新版就 404。
+
+**两条不变量**（违反后失效方式都不直观，详见 `docs/install-incident-report.md`）：
+
+- `cordis.patch.yml` 的 `name:` **必须等于** `package.json` 的 `name`。前者是 Loader 用来解析模块的说明符，写错则插件装配失败；而 `id:` 与 `lib/client.js` 里的 id 字面量与之无关，不必跟着改。
+- Release 资产引用二选一：要「永远最新」只写稳定别名（文件名**不含**版本号）；要「固定可复现」就用 `/releases/download/v<版本>/…`。**两者不可混用**。
+
+**npm 映射是自动探测的，不要手写。** 市场目录条目的 `npm` 字段由 `awesome-dsh-plugin` 的 `scripts/probe-npm.mjs` 自动写入 `data/npm-map.json`：它读仓库 HEAD 的 `package.json` 取包名，再要求 npm 上该包的 `repository` 指回本仓库。所以 `package.json` 的 `repository` 字段是功能性的，不能省；往条目 YAML 里手写 `npm:` 反而会被 `entries.mjs` 判为非法键。
+
+**发布前先确认 npm 认证形态**（2026-09 实测，`npm login` 成功 ≠ 能发布）：
+
+| 项 | 取值 |
+|---|---|
+| 类型 | Granular Access Token |
+| Permissions | `Read and write (publish and stage)` |
+| Select packages | **`All packages`**（本包无 scope，选 `@lichtspur` 之类的 scope 等于没授权） |
+| Bypass 2FA | **勾选**（不勾必 E403；且 registry 返 403 而非 401，npm 永远不会提示输 OTP） |
+| Organizations | `No access`（否则表单校验不过） |
+| Allowed IP ranges | 留空 |
+
+> ⚠️ **该 token 形态有保质期**：npm 明示 *"Bypass-2fa token with direct-publish access … will be removed in January 2027"*，官方建议改用 `Read and write (stage only)`（上传后在网页确认发布）。**2027 年 1 月前须迁移**。

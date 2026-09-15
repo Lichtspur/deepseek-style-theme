@@ -3,4 +3,4 @@
 # it with `dsh plugin --profile <name> add <path-or-git-url>`.
 - insert:
     - id: ui-skin-deepseek-style
-      name: '@dsh-external/dsh-deepseek-style-theme'
+      name: 'dsh-deepseek-style-theme'

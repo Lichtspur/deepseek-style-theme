@@ -103,16 +103,24 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 ### 从本地 tgz（推荐用于代理 / 离线环境）
 
 ```bash
-dsh plugin --profile web add ./releases/dsh-external-dsh-deepseek-style-theme-1.41.0.tgz
+dsh plugin --profile web add ./releases/dsh-deepseek-style-theme-1.43.1.tgz
 ```
 
 `releases/` 下的归档随每个 Release 发布，既不依赖 git 也不依赖 registry，在受限网络里最省事。
+归档文件名由 `package.json` 的 `name` 与 `version` 决定（`pnpm pack` / `npm pack` 均如此），
+因此 1.44.0 起是 `dsh-deepseek-style-theme-<版本>.tgz`。
 
-### 从 npm / 其他 Git 仓库
+### 从 npm
 
 ```bash
-# 发布到 registry 后
-dsh plugin --profile web add @dsh-external/dsh-deepseek-style-theme
+dsh plugin --profile web add dsh-deepseek-style-theme
+```
+
+> 包名是**无 scope** 的 `dsh-deepseek-style-theme`。这是刻意的：`@dsh-external` 这个 scope 在 npm 上属于别人（`wulei1107`，下面挂着 `@dsh-external/dsh-vision-toolkit`），不是本项目的命名空间，也发不进去。仓库里 `cordis.patch.yml` 的 `name:` 与 `package.json` 的 `name` 必须始终一致——前者是 Loader 用来解析模块的说明符，写成解析不到的旧名会让插件装配失败。
+>
+> npm 是最省事的安装源：不走 `git clone`（绕开代理/证书问题），也不依赖 GitHub Release 资产（绕开 `releases/latest` 那类 URL 腐烂）。插件市场的目录条目一旦写上 `npm` 字段，市场就会优先用它而不是 tarball。
+
+```bash
 # 或任意 git 仓库地址（若该仓库未提交构建产物，
 # 则需其提供 prepare 脚本并按 pnpm 提示在
 # ~/.dsh/profiles/<name>/pnpm-workspace.yaml 的 allowBuilds 中授权后重跑）
@@ -179,7 +187,7 @@ deepseek-style-theme:
 ## 卸载
 
 ```bash
-dsh plugin --profile web remove @dsh-external/dsh-deepseek-style-theme
+dsh plugin --profile web remove dsh-deepseek-style-theme
 ```
 
 - 该命令移除依赖并自动从 `dsh.profile.bundles` 装配列表剔除，重启 `dsh web` 后主题完全消失。
