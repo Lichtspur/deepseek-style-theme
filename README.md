@@ -4,7 +4,9 @@
 
 ## 特性
 
-- **流体粒子背景**：全屏 `<canvas>` 连线粒子，明暗两套配色
+- **流体流动背景（1.42.0+）**：全屏 WebGL2 双通道流体模拟——四分之一分辨率的流场（衰减 + 带速度的指针笔刷，两个 framebuffer 乒乓）被全分辨率的域扭曲噪声渲染器采样，带旋流迭代与三色柔性混合；按钮悬停会轻推流场、点击则荡开涟漪。配色跟随 DSTT 三色令牌（峰谷红 / 谷时蓝 / 常态绿）实时重新着色，无需重挂。**无 WebGL2 时自动回落到原来的粒子背景**（粒子实现完整保留）
+- **液态玻璃（1.42.0+）**：一套「湿玻璃」配方——半透明填充 + 顶部最亮、约 38% 处消失的竖向光泽渐变 + 统一的 `blur() saturate() brightness() contrast()` 背板链 + 内嵌顶部高光与发丝描边，悬停只提亮填充；所有旋钮都是 `--dshome-glass-*` 变量。**折射**（SVG `feDisplacementMap`）只加在少数大面积上（侧边栏 / 输入框 / 设置模态框）：它仅 Chromium 支持，且每个元素一次滤镜采样
+- **鼠标跟随的对话窗光斑（1.42.0+）**：光标在对话窗（消息区与输入框）上移动时，窗口上有一团跟随鼠标的柔光；它用 `background-attachment: fixed` 锚在视口上，所以滚动不会把光斑一起拖走，也不需要覆盖层元素。悬停玻璃面时另有一层随光标偏移的高光（`--dshome-spec-x/y`）
 - **玻璃拟态**：侧边栏、会话卡片、输入框半透明填充 + 毛玻璃
 - **明暗双主题**：深色通过 `body[data-ds-dark-theme]` 切换
 - **品牌细节**：胶囊按钮、渐变主按钮、圆角卡片
@@ -40,6 +42,7 @@
 - **锚点守卫 CSS**：所有针对产品 hash 类名的样式拆成独立补丁块，只有对应锚点类存在于 DOM 时才注入（延迟 30s 等待晚渲染壳），锚点永久缺失时跳过该块并打一行诊断日志，而不是静默注入失效 CSS；
 - **自有暗色标记**：明暗模式由主题服务的 `active.colorScheme` 驱动到自有属性 `data-dshome-dark`，不依赖产品属性名；
 - **能走 Slot 的 UI 走 Slot**：语言切换注册在 `conversation.session.header.utilities`（产品公开 Slot API）；仅无 Slot 的表面（工作区行菜单、交付文件卡片）使用 DOM 补丁。
+- **逐层降级而不是整块失效**（1.42.0+）：背景先探测 WebGL2，拿不到就用粒子实现（`startParticles` 完整保留），着色器编译/链接失败同样返回空操作句柄而不是抛错；折射滤镜只在引擎真的支持 SVG `backdrop-filter` 时才挂 `data-dshome-dispersion`，其余浏览器静默保留普通毛玻璃；连 `backdrop-filter` 都不支持时由 `@supports not (...)` 回落为不透明填充。
 
 ### `dsh.client.inject` 的语义：加载顺序，不是 import
 
@@ -184,7 +187,7 @@ dsh plugin --profile web remove @dsh-external/dsh-deepseek-style-theme
 | `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径 / `file.*` 端点识别与校验，24 项检查；加 `--open` 为 25 项，会真的用系统默认应用打开一个临时文件，**会在桌面弹出窗口**，默认不启用） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js] [--open]` |
 | `catalog-sync-smoke.mjs` | 模型目录同步的全部分支：一致 / 可描述漂移 / 聚合网关目录 / 只追加 / `off` / baseURL 解析顺序 / 无密钥 / 端点故障 / 命名空间未就绪 / 版本冲突（27 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
 | `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |
-| `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项、`--file-card` 时合成两张交付表面并验证左键/右键菜单（条目、定位、复制提示、预览转发、选中后关闭）、`--deliverables` 时报告真实页面上两处交付表面的存在情况与点击后果 | 见下 |
+| `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项、`--file-card` 时合成两张交付表面并验证左键/右键菜单（条目、定位、复制提示、预览转发、选中后关闭）、`--deliverables` 时报告真实页面上两处交付表面的存在情况与点击后果、`--ambient` 时报告背景到底是流体还是粒子回落、折射是否挂上、玻璃配方是否生效，并悬停一次验证 `--dshome-spec-x/y` 真的在写、`--shot <目录>` 时落一张全页截图 | 见下 |
 
 ```bash
 # gui-probe：先起一个监听 CDP 的 Chrome，再把 dsh 签名用的会话密钥放进环境变量
@@ -202,6 +205,7 @@ node tools/gui-probe.mjs --models --file-card
 .
 ├── package.json                    # dsh bundle 元数据
 ├── cordis.patch.yml                # insert 插件行
+├── THIRD-PARTY-NOTICES.md          # 第三方许可原文（mineradio / harness-background）
 ├── releases/                       # 发布产物（tgz 归档）
 ├── tools/                          # 自测工具（不随包发布）
 │   ├── bridge-smoke.mjs            # 宿主端私有 RPC 通道冒烟测试
@@ -210,11 +214,19 @@ node tools/gui-probe.mjs --models --file-card
 │   └── gui-probe.mjs               # 实时页面的无头浏览器探测与像素扫描
 └── lib/
     ├── index.js                    # host 端：打开工作区 / 交付文件 RPC、DSTT 设置、模型目录同步
-    └── client.js                   # 主题 client 端（含交付文件卡片菜单补丁）
+    └── client.js                   # 主题 client 端（含流体背景、液态玻璃、交付文件卡片菜单）
 ```
 
 ## 许可
 
 MIT
+
+### 第三方代码与署名
+
+本插件的流体着色器、玻璃折射滤镜与光标视差**移植自 [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) v2.3.8**（MIT，Copyright (c) 2026 John Wu）——三段 GLSL 是上游的**逐字节副本**，只改了命名与外部依赖。液态玻璃配方则**仿照 [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background) 的玻璃样式**（MIT，Copyright (c) 2026 HaoyueQin），是按本插件选择器与 `--dshome-glass-*` 变量对该技法的重新表达，未复制其源码。
+
+两份完整许可原文见 `THIRD-PARTY-NOTICES.md`，随包发布，再分发时必须保留。
+
+> 另一条需知的来源链：上游注明其流体着色器本身是 deepseek.com 站点 bundle 中 `ds-join-shader-bg` 的逐字移植。该来源说明为上游所写，记录于此以便审计。
 
 > 本插件为第三方主题皮肤，复刻 DeepSeek 官网视觉风格，与 DeepSeek（深度求索）官方无隶属关系、无背书或关联；DeepSeek 为深度求索公司的商标。

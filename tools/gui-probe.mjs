@@ -29,6 +29,8 @@
 import crypto from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const { values } = parseArgs({
 	options: {
@@ -37,6 +39,9 @@ const { values } = parseArgs({
 		models: { type: 'boolean', default: false },
 		'file-card': { type: 'boolean', default: false },
 		deliverables: { type: 'boolean', default: false },
+		ambient: { type: 'boolean', default: false },
+		shot: { type: 'string' },
+		hover: { type: 'string' },
 	},
 });
 const ORIGIN = values.url.replace(/\/+$/, '');
@@ -260,6 +265,35 @@ const DELIVERABLES_AFTER = `(() => {
 		before,
 		after: { nodes: document.querySelectorAll('body *').length, dialogs: document.querySelectorAll('[role="dialog"],[aria-modal="true"]').length },
 		menuOpen: document.querySelector('.dshome-file-menu') !== null
+	};
+})()`;
+
+const AMBIENT = `(() => {
+	const canvas = document.querySelector('[data-dsh-deepseek-canvas]');
+	let backend = 'no canvas';
+	if (canvas !== null) {
+		if (canvas.getContext('webgl2') !== null) backend = 'webgl2 (fluid)';
+		else if (canvas.getContext('2d') !== null) backend = '2d (particles fallback)';
+		else backend = 'canvas present, unknown context';
+	}
+	const glass = (selector, pseudo) => {
+		const node = document.querySelector(selector);
+		if (node === null) return null;
+		const style = getComputedStyle(node, pseudo);
+		return {
+			backdrop: String(style.backdropFilter || style.webkitBackdropFilter || '').slice(0, 70),
+			image: String(style.backgroundImage || '').slice(0, 70),
+			shadow: String(style.boxShadow || '').slice(0, 60)
+		};
+	};
+	return {
+		backend,
+		size: canvas === null ? null : [canvas.width, canvas.height],
+		dispersion: document.documentElement.hasAttribute('data-dshome-dispersion'),
+		glassSheet: document.querySelector('style[data-plugin-css$="glass.css"]') !== null,
+		spots: document.querySelectorAll('[data-dshome-spot]').length,
+		bubble: glass('.gdEzaW_bubble', null),
+		sidebar: glass('.hHd-Xa_root', '::before')
 	};
 })()`;
 
@@ -488,6 +522,29 @@ if (report.header === null) {
 		console.log('  offered: ' + JSON.stringify(await cdp.evaluate(MODEL_ROWS)));
 	}
 
+	if (values.ambient) {
+		console.log('\n-- ambient background + liquid glass --');
+		const ambientPage = await cdp.evaluate(AMBIENT);
+		console.log('  background backend:  ' + ambientPage.backend + (ambientPage.size === null ? '' : '  canvas=' + JSON.stringify(ambientPage.size)));
+		console.log('  glass.css injected:  ' + String(ambientPage.glassSheet));
+		console.log('  refraction mounted:  ' + String(ambientPage.dispersion) + ' (html[data-dshome-dispersion])');
+		console.log('  specular spots:      ' + String(ambientPage.spots) + ' (marked on hover)');
+		console.log('  composer glass:      ' + JSON.stringify(ambientPage.bubble));
+		console.log('  sidebar glass:       ' + JSON.stringify(ambientPage.sidebar));
+		// Hovering a glass surface must stamp the spot attribute and start writing
+		// the two specular variables that GLASS_CSS consumes.
+		await cdp.mouseTo(150, 320);
+		await delay(500);
+		const hovered = await cdp.evaluate(AMBIENT);
+		const spec = await cdp.evaluate(`(() => {
+			const node = document.querySelector('[data-dshome-spot]');
+			if (node === null) return null;
+			return { cls: String(node.className).slice(0, 40), x: node.style.getPropertyValue('--dshome-spec-x'), y: node.style.getPropertyValue('--dshome-spec-y') };
+		})()`);
+		console.log('  spots after hover:   ' + String(hovered.spots));
+		console.log('  specular vars:       ' + JSON.stringify(spec));
+	}
+
 	if (values.deliverables) {
 		console.log('\n-- deliverables surfaces on the real page --');
 		const before = await cdp.evaluate(DELIVERABLES_BEFORE);
@@ -542,10 +599,28 @@ if (report.header === null) {
 	} catch (error) {
 		console.log('\npixel scan skipped: ' + String(error.message).slice(0, 120));
 	}
+
+	if (values.shot !== undefined) {
+		// A cursor is required for anything hover-driven (spot attributes, the
+		// specular variables, the conversation spotlight), so --hover parks the
+		// pointer before the capture.
+		if (values.hover !== undefined) {
+			const [hx, hy] = String(values.hover).split(',').map((part) => Number(part.trim()));
+			if (Number.isFinite(hx) && Number.isFinite(hy)) {
+				await cdp.mouseTo(hx, hy);
+				await delay(900);
+			}
+		}
+		const shot = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+		const file = join(values.shot, 'gui-' + String(Date.now()) + '.png');
+		writeFileSync(file, Buffer.from(shot.data, 'base64'));
+		console.log('\nscreenshot: ' + file);
+	}
 }
 
 await fetch(CDP_HTTP + '/json/close/' + targetId).catch(() => {});
 cdp.socket.close();
+
 console.log('\n== done ==');
 // No process.exit() here: tearing the loop down under a closing websocket
 // trips a libuv assertion (STATUS_STACK_BUFFER_OVERRUN) and turns a successful

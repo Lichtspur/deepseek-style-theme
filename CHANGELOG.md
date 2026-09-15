@@ -12,6 +12,21 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v1.42.0 — 2026-09-15
+
+### 新增
+- **流体流动背景**：全屏 WebGL2 双通道流体模拟替代粒子背景——四分之一分辨率流场（衰减 + 带速度的指针笔刷，两个 framebuffer 乒乓）由全分辨率域扭曲噪声渲染器采样，带旋流迭代与三色柔性混合；按钮悬停轻推流场、点击荡开涟漪。配色跟随 DSTT 三色令牌（峰谷红 / 谷时蓝 / 常态绿）实时重新着色，无需重挂。
+- **液态玻璃**：半透明填充 + 顶部最亮、约 38% 处消失的竖向光泽渐变 + 统一的 `blur() saturate() brightness() contrast()` 背板链 + 内嵌顶部高光与发丝描边，悬停只提亮填充；旋钮统一为 `--dshome-glass-*`。
+- **折射**：SVG `feDisplacementMap` 色散滤镜，仅加在少数大面积上（侧边栏 / 输入框 / 设置模态框）。
+- **鼠标跟随高光**：光标在输入框 `[data-composer-card]` 与消息气泡上移动时高光随光标偏移（`--dshome-spec-x/y`）。
+
+### 变更
+- 粒子背景保留为**降级路径**：探测不到 WebGL2 时自动回落到粒子实现；着色器编译/链接失败返回空操作句柄而非抛错。
+- 对话消息区与中栏**不再是**光标跟随面：横跨大片空白的光斑会读成一块白斑在背景上滑动（按反馈调整）。
+
+### 许可
+- 新增 `THIRD-PARTY-NOTICES.md`：流体着色器 / 折射滤镜 / 光标视差移植自 [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) v2.3.8（MIT, Copyright (c) 2026 John Wu），三段 GLSL 为逐字节副本；液态玻璃配方仿照 [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background)（MIT, Copyright (c) 2026 HaoyueQin）。两份许可原文随包发布，再分发必须保留。
+
 ## v1.41.2 — 2026-09-15
 
 ### 修复
