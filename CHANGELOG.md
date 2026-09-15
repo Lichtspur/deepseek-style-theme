@@ -12,6 +12,23 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v1.43.3 — 2026-09-15
+
+### 修复
+- **【致命】1.43.1 改名漏了客户端注册 id，凡是装了新包名的 profile 主题整个加载失败**。报错原文：
+
+  ```
+  failed to import loader entry 03f7bc74 (dsh-deepseek-style-theme): client-modules:
+  bundle /plugins/??...,dsh-deepseek-style-theme/client.js&rev=... loaded without
+  registering "dsh-deepseek-style-theme" via __ModuleLoader__.load
+  ```
+
+  宿主按 `/plugins/<entry.id>/client.js` 组装浏览器 bundle，然后**要求该 bundle 用同一个 id 自我注册**。`lib/client.js` 顶部的 `id:` 与 `PLUGIN_ID` 当时仍是旧 scope 的 `@dsh-external/dsh-deepseek-style-theme`，于是 bundle 加载成功却什么都没注册 —— 整棵客户端半边失效。
+
+  - 三处必须一致，现在都等于 `dsh-deepseek-style-theme`：`package.json` 的 `name`、`cordis.patch.yml` 的 `name:`、`lib/client.js` 的注册 id。
+  - **`docs/install-incident-report.md` 第 4.1 节的结论需要更正**：那里写着「`lib/client.js` 里的 id 字面量只是客户端内部 id，不参与模块解析，不必跟着改」。这一条是错的 —— 它确实参与，只是**只在装了新包名的 profile 上才暴露**：开发机上仍是旧 scoped 包，bundle URL 恰好与陈旧字面量匹配，所以一直看不出来。
+  - 教训与 schema 那条同源：**改名的引用点要靠检查枚举**，`grep 旧值` 应当只在有意兼容处命中。本轮 `grep '@dsh-external' lib/` 之前有 2 处，现在是 0 处。
+
 ## v1.43.2 — 2026-09-15
 
 ### 装配与发布（不改 `lib/` 一行）
