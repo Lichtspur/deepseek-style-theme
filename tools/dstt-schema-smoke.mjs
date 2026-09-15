@@ -19,9 +19,9 @@
  * Usage: node tools/dstt-schema-smoke.mjs [absolute path to lib/index.js]
  */
 import { createServer } from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const positionals = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
@@ -155,6 +155,59 @@ const normal = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-
 check('a full four-field write validates',
 	normal.json.ok === true && validates(applyOps({}, mutated.ops)).ok,
 	normal.json.ok ? undefined : JSON.stringify(normal.json.error));
+
+// 2.0.73 background recipes: the same invariant, one field over. Every id the
+// write path accepts has to survive validation, because the value lands in
+// settings.yaml and `register()` re-validates it on the next boot.
+for (const value of ['classic', 'white', 'custom', 'bold']) {
+	const res = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-green', backgroundMode: value } });
+	const wrote = mutated !== null && mutated.ops.some((op) => op.path[0] === 'backgroundMode' && op.value === value);
+	check(`write path persists backgroundMode=${JSON.stringify(value)}`,
+		res.json.ok === true && wrote,
+		`ok=${res.json.ok} wrote=${wrote}`);
+
+	if (!wrote) continue;
+	const verdict = validates(applyOps({ mode: 'always-green' }, mutated.ops));
+	check(`a settings file holding backgroundMode=${JSON.stringify(value)} still validates`,
+		verdict.ok,
+		verdict.ok ? undefined : verdict.why);
+}
+
+// An id nobody knows must be refused by the write path rather than stored and
+// then blow up register() on the next boot -- the exact shape of the 1.43.2
+// incident this file exists for. `mutated` is cleared first: it still holds the
+// ops of the last accepted write above.
+mutated = null;
+const bogus = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-green', backgroundMode: 'nope' } });
+check('write path refuses an unknown backgroundMode',
+	(bogus.json.ok === true || bogus.json.ok === false)
+		&& mutated.ops.every((op) => op.path[0] !== 'backgroundMode'),
+	JSON.stringify(mutated.ops.map((op) => op.path[0])));
+
+// A custom background is free text, and the host normalises it before storing:
+// control characters become spaces, then the result is trimmed and bounded.
+const custom = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-green', customBackground: '  url(x.png)\n\t  ' } });
+const customOp = mutated.ops.find((op) => op.path[0] === 'customBackground');
+check('write path normalises customBackground',
+	custom.json.ok === true && customOp !== undefined && customOp.value === 'url(x.png)',
+	JSON.stringify(customOp === undefined ? null : customOp.value));
+check('a settings file holding customBackground still validates',
+	customOp !== undefined && validates(applyOps({ mode: 'always-green' }, mutated.ops)).ok);
+
+// The panel's list lives in lib/client.js and the accepted ids live in
+// lib/index.js. Nothing but this check keeps the two halves in step, and an id
+// the panel offers but the host refuses looks exactly like a broken setting.
+const clientPath = join(dirname(target), 'client.js');
+if (existsSync(clientPath)) {
+	const listMatch = readFileSync(clientPath, 'utf8').match(/const DSTT_BACKGROUNDS = \[([^\]]*)\]/);
+	const ids = listMatch === null ? [] : [...listMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+	check('the client lists the background recipes', ids.length > 0, ids.join(','));
+	for (const id of ids) {
+		const res = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-green', backgroundMode: id } });
+		check(`the host accepts the client's backgroundMode=${JSON.stringify(id)}`,
+			res.json.ok === true && mutated.ops.some((op) => op.path[0] === 'backgroundMode' && op.value === id));
+	}
+}
 
 await new Promise((resolve) => server.close(resolve));
 

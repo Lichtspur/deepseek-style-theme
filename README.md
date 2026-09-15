@@ -39,8 +39,13 @@
 - **常态绿**：始终绿色，无高峰区分；
 - **常态蓝**：始终蓝色，无高峰区分。
 
-另有两行开关：
+另有几行开关与选项：
 
+- **背景方式**（`backgroundMode`，默认 `classic`；2.0.73+）：一行四选，**切换即时生效、不用刷新页面**。
+  - **① 主色+纯白+近白**（`classic`，默认）：1.43.11 那套（软主色 + 纯白 + 近白），按钮与背景同一色系、没有第二种色相；
+  - **② 主色+纯白**（`white`）：同一软主色 + 纯白。着色器三个 uniform 里第三个复用白色（深色复用该族的近黑），所以**只有两个颜色参与**；
+  - **③ 自选背景**（`custom`）：背景交给你自己的值（`customBackground`，收**图片 URL 或任意 CSS 背景值**）。**颜色只驱动按钮与品牌 token**；流体/粒子画布在这档下**整体卸载**（不是藏起来），否则 0.55 的流体洗色会盖住并重新染色你的图；深色模式在背景上再压一层 55% 深色蒙版。空值或不合法值**不会白屏**——那几条 CSS 靠 `data-dshome-customkind` 门控，不匹配就退回主题自己的底色，输入框右侧给「可用 · 图片 / 可用 · 纯色 / 暂不可用 / 留空 = 用回默认底色」；
+  - **浓三色**（`bold`）：1.43.12 的三浓色，保留可选（用户要求先留着）。
 - **流体跟随笔刷**（`fluidBrush`，默认关）：开启后光标才把速度写进流场、拖出尾迹；**改完刷新页面生效**。
 - **玻璃风格**（`glassStyle`，默认 `液态`）：
   - **液态**（1.43.0+）：Apple Liquid Glass 方向——填充降到 `rgb(255 255 255 / .14)`、顶部光泽降到 `.07`，背板链改为靠 `saturate(1.75)` 让身后颜色发亮，共用的 `feDisplacementMap` 走更大的 scale（104，白磨砂仍是 60），边框上再跑一圈自走的 `conic-gradient` 高光（`@property` 注册的 `<angle>`，与鼠标无关）。上玻璃的只有四处：**侧边栏外壳 / 对话框 / 标题栏（悬停）/ 用户消息气泡**；
@@ -222,11 +227,13 @@ dsh plugin --profile web remove dsh-deepseek-style-theme
 
 ## 自测工具（开发用，不随包发布）
 
-`tools/` 里的四个脚本都在本机直接跑，**不进发布产物**（`package.json` 的 `files` 只含 `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE`）。前三个不需要浏览器、不需要网络；第四个需要自己起一个无头 Chrome。
+`tools/` 里的脚本都在本机直接跑，**不进发布产物**（`package.json` 的 `files` 只含 `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE`）。除 `gui-probe.mjs` 与 `--open` 的 `bridge-smoke.mjs` 外，都不需要浏览器、不需要网络。
 
 | 工具 | 作用 | 运行 |
 |---|---|---|
 | `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径 / `file.*` 端点识别与校验，24 项检查；加 `--open` 为 25 项，会真的用系统默认应用打开一个临时文件，**会在桌面弹出窗口**，默认不启用） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js] [--open]` |
+| `dstt-schema-smoke.mjs` | DSTT 设置 schema 与写入路径的一致性：**每个能写进 `settings.yaml` 的值都必须过 `register()` 的校验**（1.43.2 那次 schema 缺 `wide` 的发布阻塞就靠它守）。含背景方式四档的往返、未知 id 拒写、自定义背景的归一化（控制字符→空格、去首尾、长度上限），以及「客户端枚举 = 宿主枚举」的跨文件检查（26 项） | `node tools/dstt-schema-smoke.mjs [lib/index.js]` |
+| `bg-recipes-smoke.mjs` | 2.0.73 背景方式的数据层（2.0.73+）：① 浅色三元组必须含纯白 + 近白、② 只有两个颜色参与（第三个 uniform 复用白/近黑）、`bold` 浅色下无 `#FFFFFF`、③ 五条 CSS 规则齐全且都门控在 `data-dshome-customkind` 上、宿主 schema 认得四个 id（36 项） | `node tools/bg-recipes-smoke.mjs [lib/client.js]` |
 | `catalog-sync-smoke.mjs` | 模型目录同步的全部分支：一致 / 可描述漂移 / 聚合网关目录 / 只追加 / `off` / baseURL 解析顺序 / 无密钥 / 端点故障 / 命名空间未就绪 / 版本冲突（27 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
 | `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |
 | `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项、`--file-card` 时合成两张交付表面并验证左键/右键菜单（条目、定位、复制提示、预览转发、选中后关闭）、`--deliverables` 时报告真实页面上两处交付表面的存在情况与点击后果、`--ambient` 时报告背景到底是流体还是粒子回落、折射是否挂上、玻璃配方是否生效，并悬停一次验证 `--dshome-spec-x/y` 真的在写、`--glass` 时逐个报告玻璃面的计算样式与 `::before`/`::after` 是否已被产品占用、`--messages` 时报告气泡的类名分组、祖先对齐链与 `data-chat-flow-kind` 取值表（气泡的 role 判定就靠它）、`--shot <目录>` 时落一张全页截图，`--pre <文件>` 可在截图前先跑一段页面侧表达式（`--pre-arg` 作为 `window.__preArg` 传入），用于拍出「指定玻璃配方 × 指定明暗」的矩阵 | 见下 |
