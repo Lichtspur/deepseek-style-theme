@@ -44,6 +44,7 @@ const { values } = parseArgs({
 		glass: { type: 'boolean', default: false },
 		pre: { type: 'string' },
 		'pre-arg': { type: 'string' },
+		session: { type: 'string' },
 		shot: { type: 'string' },
 		hover: { type: 'string' },
 	},
@@ -600,12 +601,13 @@ const PIXEL_SCAN = (top) => `(async () => {
 	return rows;
 })()`;
 
-const CLICK_SESSION = `(() => {
+const clickSession = (match) => `(() => {
 	const rows = Array.from(document.querySelectorAll('[class*="sessionRow"]')).filter((row) => {
 		const text = (row.innerText || '').trim();
-		return text !== '' && !text.startsWith('新会话') && !text.startsWith('进行中 新会话');
+		if (text === '' || text.startsWith('新会话') || text.startsWith('进行中 新会话')) return false;
+		return ${match === undefined ? 'true' : JSON.stringify(match) + ' === "" || text.includes(' + JSON.stringify(match) + ')'};
 	});
-	if (rows.length === 0) return 'no titled session row';
+	if (rows.length === 0) return 'no matching session row';
 	rows[0].click();
 	return 'opened: ' + (rows[0].innerText || '').replace(/\\s+/g, ' ').slice(0, 40);
 })()`;
@@ -632,7 +634,7 @@ await delay(7000);
 for (let attempt = 0; attempt < 3; attempt += 1) {
 	const children = await cdp.evaluate('document.querySelector(".wSkVaW_header") === null ? -1 : document.querySelector(".wSkVaW_header").children.length');
 	if (children > 0) break;
-	console.log('walk: ' + await cdp.evaluate(CLICK_SESSION));
+	console.log('walk: ' + await cdp.evaluate(clickSession(values.session)));
 	await delay(6000);
 }
 
