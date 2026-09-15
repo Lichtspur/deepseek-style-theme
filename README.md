@@ -5,7 +5,7 @@
 ## 特性
 
 - **流体流动背景（1.42.0+）**：全屏 WebGL2 双通道流体模拟——四分之一分辨率的流场（衰减 + 带速度的指针笔刷，两个 framebuffer 乒乓）被全分辨率的域扭曲噪声渲染器采样，带旋流迭代与三色柔性混合；按钮悬停会轻推流场、点击则荡开涟漪。配色跟随 DSTT 三色令牌（峰谷红 / 谷时蓝 / 常态绿）实时重新着色，无需重挂。**无 WebGL2 时自动回落到原来的粒子背景**（粒子实现完整保留）
-- **液态玻璃（1.42.0+）**：一套「湿玻璃」配方——半透明填充 + 顶部最亮、约 38% 处消失的竖向光泽渐变 + 统一的 `blur() saturate() brightness() contrast()` 背板链 + 内嵌顶部高光与发丝描边，悬停只提亮填充；所有旋钮都是 `--dshome-glass-*` 变量。**折射**（SVG `feDisplacementMap`）只加在少数大面积上（侧边栏 / 输入框 / 设置模态框）：它仅 Chromium 支持，且每个元素一次滤镜采样
+- **液态玻璃（1.42.0+，1.43.0 起分两套配方）**：一套「湿玻璃」配方——半透明填充 + 顶部最亮、约 38% 处消失的竖向光泽渐变 + 统一的 `blur() saturate() brightness() contrast()` 背板链 + 内嵌顶部高光与发丝描边，悬停只提亮填充；所有旋钮都是 `--dshome-glass-*` 变量。1.43.0 新增 **`液态 / 白磨砂`** 二选一（见下文 DSTT 设置）：`液态` 更通透、折射更强、边框带自走高光；`白磨砂` 就是上面这套。**折射**（SVG `feDisplacementMap`）只加在四个区域上（侧边栏 / 对话框 / 标题栏悬停态 / 用户气泡）：它仅 Chromium 支持，且每个元素一次滤镜采样
 - **鼠标跟随的对话窗光斑（1.42.0+）**：光标在对话窗（消息区与输入框）上移动时，窗口上有一团跟随鼠标的柔光；它用 `background-attachment: fixed` 锚在视口上，所以滚动不会把光斑一起拖走，也不需要覆盖层元素。悬停玻璃面时另有一层随光标偏移的高光（`--dshome-spec-x/y`）
 - **玻璃拟态**：侧边栏、会话卡片、输入框半透明填充 + 毛玻璃
 - **明暗双主题**：深色通过 `body[data-ds-dark-theme]` 切换
@@ -27,6 +27,13 @@
 - **峰谷红绿**：高峰 = 鲜红（提示），谷时段 = 绿色；
 - **常态绿**：始终绿色，无高峰区分；
 - **常态蓝**：始终蓝色，无高峰区分。
+
+另有两行开关：
+
+- **流体跟随笔刷**（`fluidBrush`，默认关）：开启后光标才把速度写进流场、拖出尾迹；**改完刷新页面生效**。
+- **玻璃风格**（`glassStyle`，默认 `液态`）：
+  - **液态**（1.43.0+）：Apple Liquid Glass 方向——填充降到 `rgb(255 255 255 / .14)`、顶部光泽降到 `.07`，背板链改为靠 `saturate(1.75)` 让身后颜色发亮，共用的 `feDisplacementMap` 走更大的 scale（104，白磨砂仍是 60），边框上再跑一圈自走的 `conic-gradient` 高光（`@property` 注册的 `<angle>`，与鼠标无关）。上玻璃的只有四处：**侧边栏外壳 / 对话框 / 标题栏（悬停）/ 用户消息气泡**；
+  - **白磨砂**：1.42.x 那套白磨砂 + 蓝变光边框，**逐像素不变**（新配方整块挂在 `html[data-dshome-glass="liquid"]` 下，已用 1991 个元素的计算样式签名验证过：切到白磨砂时新样式表贡献为零）。
 
 ### 高峰判定（1.37.0+）
 
@@ -187,7 +194,7 @@ dsh plugin --profile web remove @dsh-external/dsh-deepseek-style-theme
 | `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径 / `file.*` 端点识别与校验，24 项检查；加 `--open` 为 25 项，会真的用系统默认应用打开一个临时文件，**会在桌面弹出窗口**，默认不启用） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js] [--open]` |
 | `catalog-sync-smoke.mjs` | 模型目录同步的全部分支：一致 / 可描述漂移 / 聚合网关目录 / 只追加 / `off` / baseURL 解析顺序 / 无密钥 / 端点故障 / 命名空间未就绪 / 版本冲突（27 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
 | `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |
-| `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项、`--file-card` 时合成两张交付表面并验证左键/右键菜单（条目、定位、复制提示、预览转发、选中后关闭）、`--deliverables` 时报告真实页面上两处交付表面的存在情况与点击后果、`--ambient` 时报告背景到底是流体还是粒子回落、折射是否挂上、玻璃配方是否生效，并悬停一次验证 `--dshome-spec-x/y` 真的在写、`--shot <目录>` 时落一张全页截图 | 见下 |
+| `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项、`--file-card` 时合成两张交付表面并验证左键/右键菜单（条目、定位、复制提示、预览转发、选中后关闭）、`--deliverables` 时报告真实页面上两处交付表面的存在情况与点击后果、`--ambient` 时报告背景到底是流体还是粒子回落、折射是否挂上、玻璃配方是否生效，并悬停一次验证 `--dshome-spec-x/y` 真的在写、`--glass` 时逐个报告玻璃面的计算样式与 `::before`/`::after` 是否已被产品占用、`--messages` 时报告气泡的类名分组、祖先对齐链与 `data-chat-flow-kind` 取值表（气泡的 role 判定就靠它）、`--shot <目录>` 时落一张全页截图，`--pre <文件>` 可在截图前先跑一段页面侧表达式（`--pre-arg` 作为 `window.__preArg` 传入），用于拍出「指定玻璃配方 × 指定明暗」的矩阵 | 见下 |
 
 ```bash
 # gui-probe：先起一个监听 CDP 的 Chrome，再把 dsh 签名用的会话密钥放进环境变量
@@ -223,7 +230,7 @@ MIT
 
 ### 第三方代码与署名
 
-本插件的流体着色器、玻璃折射滤镜与光标视差**移植自 [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) v2.3.8**（MIT，Copyright (c) 2026 John Wu）——三段 GLSL 是上游的**逐字节副本**，只改了命名与外部依赖。液态玻璃配方则**仿照 [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background) 的玻璃样式**（MIT，Copyright (c) 2026 HaoyueQin），是按本插件选择器与 `--dshome-glass-*` 变量对该技法的重新表达，未复制其源码。
+本插件的流体着色器、玻璃折射滤镜与光标视差**移植自 [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) v2.3.8**（MIT，Copyright (c) 2026 John Wu）——三段 GLSL 是上游的**逐字节副本**，只改了命名与外部依赖；1.43.0 的**对话框悬停倾斜**同样移植自上游 `startSpotlight` 的 tilt 分支（常量 `TILT_MAX 0.0175` / `TILT_PERSPECTIVE 800` / `scale(1.01)` / 松手 240ms 后清内联属性，按本主题只作用于对话框）。液态玻璃配方则**仿照 [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background) 的玻璃样式**（MIT，Copyright (c) 2026 HaoyueQin），是按本插件选择器与 `--dshome-glass-*` 变量对该技法的重新表达，未复制其源码。
 
 两份完整许可原文见 `THIRD-PARTY-NOTICES.md`，随包发布，再分发时必须保留。
 

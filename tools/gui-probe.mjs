@@ -29,7 +29,7 @@
 import crypto from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const { values } = parseArgs({
@@ -40,6 +40,10 @@ const { values } = parseArgs({
 		'file-card': { type: 'boolean', default: false },
 		deliverables: { type: 'boolean', default: false },
 		ambient: { type: 'boolean', default: false },
+		messages: { type: 'boolean', default: false },
+		glass: { type: 'boolean', default: false },
+		pre: { type: 'string' },
+		'pre-arg': { type: 'string' },
 		shot: { type: 'string' },
 		hover: { type: 'string' },
 	},
@@ -305,6 +309,149 @@ const AMBIENT = `(() => {
 	};
 })()`;
 
+const MESSAGES = `(() => {
+	const lines = [];
+	const rect = (node) => {
+		const r = node.getBoundingClientRect();
+		return JSON.stringify([Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]);
+	};
+	const short = (value, n) => String(value ?? '').replace(/\\s+/g, ' ').trim().slice(0, n);
+	const chain = (start, depth) => {
+		const out = [];
+		let node = start;
+		for (let i = 0; i < depth && node !== null && node !== document.body; i += 1) {
+			const style = getComputedStyle(node);
+			const data = Array.from(node.attributes)
+				.filter((attribute) => attribute.name.startsWith('data-'))
+				.map((attribute) => attribute.name + '=' + short(attribute.value, 24));
+			out.push('    ' + '  '.repeat(i) + node.tagName.toLowerCase()
+				+ '.' + short(String(node.className).split(/\\s+/).filter(Boolean).slice(0, 2).join('.'), 60)
+				+ (data.length === 0 ? '' : ' [' + data.join(' ') + ']')
+				+ ' display=' + style.display + ' dir=' + style.flexDirection
+				+ ' justify=' + style.justifyContent + ' align=' + style.alignItems
+				+ ' ml=' + style.marginLeft + ' mr=' + style.marginRight
+				+ ' w=' + Math.round(node.getBoundingClientRect().width));
+			node = node.parentElement;
+		}
+		return out;
+	};
+
+	// A. Every element whose class mentions "bubble", grouped by exact class
+	//    string — the product hashes these, so an exact selector from an older
+	//    build silently matches nothing.
+	const bubbles = Array.from(document.querySelectorAll('[class*="bubble" i]'));
+	const grouped = new Map();
+	for (const node of bubbles) {
+		const key = short(String(node.className), 120);
+		if (!grouped.has(key)) grouped.set(key, []);
+		grouped.get(key).push(node);
+	}
+	lines.push('elements with "bubble" in class: ' + bubbles.length + ' in ' + grouped.size + ' distinct class string(s)');
+	for (const [key, list] of grouped) {
+		const first = list[0];
+		const style = getComputedStyle(first);
+		lines.push('  class "' + key + '" x' + list.length + ' rect=' + rect(first));
+		lines.push('    text=' + JSON.stringify(short(first.textContent, 60)));
+		lines.push('    bg=' + style.backgroundColor + ' radius=' + style.borderRadius + ' display=' + style.display + ' margin=' + style.margin);
+		for (const line of chain(first.parentElement, 4)) lines.push(line);
+	}
+
+	// B. The product's own data-* vocabulary, with every distinct value — a
+	//    role marker here is far more stable than a hashed class.
+	const vocab = (name) => {
+		const values = new Map();
+		for (const node of document.querySelectorAll('[' + name + ']')) {
+			const value = short(node.getAttribute(name), 30);
+			values.set(value, (values.get(value) ?? 0) + 1);
+		}
+		return values.size === 0 ? null : name + ': ' + Array.from(values.entries()).map(([value, count]) => JSON.stringify(value) + 'x' + count).join(' ');
+	};
+	for (const name of ['data-chat-flow-kind', 'data-align', 'data-slot', 'data-variant', 'data-state', 'data-turn-tail', 'data-chat-flow', 'data-context-source']) {
+		const line = vocab(name);
+		if (line !== null) lines.push(line);
+	}
+
+	// C. The last turn's skeleton: which containers hold a user message and
+	//    which hold an assistant one.
+	const conversation = document.querySelector('[data-conversation-scroll]');
+	if (conversation === null) {
+		lines.push('no [data-conversation-scroll]');
+		return lines;
+	}
+	const describe = (node) => node.tagName.toLowerCase()
+		+ '.' + short(String(node.className).split(/\\s+/).filter(Boolean).slice(0, 2).join('.'), 44)
+		+ Array.from(node.attributes).filter((a) => a.name.startsWith('data-'))
+			.map((a) => '[' + a.name + '=' + short(a.value, 18) + ']').join('')
+		+ ' ' + rect(node);
+	let budget = 70;
+	const walk = (node, depth) => {
+		for (const child of node.children) {
+			if (budget <= 0) return;
+			budget -= 1;
+			lines.push('  ' + '  '.repeat(depth) + describe(child));
+			if (depth < 3) walk(child, depth + 1);
+		}
+	};
+	lines.push('conversation skeleton (top levels):');
+	walk(conversation, 0);
+	return lines;
+})()`;
+
+const GLASS_SURFACES = `(() => {
+	const lines = [];
+	const short = (value, n) => String(value ?? '').replace(/\\s+/g, ' ').trim().slice(0, n);
+	const rect = (node) => {
+		const r = node.getBoundingClientRect();
+		return JSON.stringify([Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]);
+	};
+	// A pseudo-element is "ours to take" only when the product has not claimed
+	// it: content none (or no box at all) means nothing is rendered there.
+	const pseudo = (node, which) => {
+		const style = getComputedStyle(node, which);
+		const content = style.content;
+		const free = content === 'none' || content === 'normal' || content === '';
+		return which + (free ? '=free' : '=USED content=' + short(content, 24))
+			+ ' display=' + style.display + ' pos=' + style.position
+			+ ' bg=' + short(style.backgroundColor, 22)
+			+ ' img=' + (short(style.backgroundImage, 18) || 'none');
+	};
+	const report = (selector) => {
+		const nodes = document.querySelectorAll(selector);
+		if (nodes.length === 0) {
+			lines.push(selector + ' -> 0 matches');
+			return;
+		}
+		const node = nodes[0];
+		const style = getComputedStyle(node);
+		lines.push(selector + ' -> ' + nodes.length + ' match(es), first ' + rect(node));
+		lines.push('    cls=' + short(String(node.className), 100));
+		lines.push('    bg=' + short(style.backgroundColor, 30) + ' bgImage=' + short(style.backgroundImage, 40));
+		lines.push('    backdrop=' + short(style.backdropFilter || style.webkitBackdropFilter, 60));
+		lines.push('    radius=' + style.borderRadius + ' pos=' + style.position + ' z=' + style.zIndex + ' overflow=' + style.overflow);
+		lines.push('    ' + pseudo(node, '::before'));
+		lines.push('    ' + pseudo(node, '::after'));
+	};
+	for (const selector of [
+		'.hHd-Xa_root',
+		'[data-slot="sidebar"]',
+		'.wSkVaW_header',
+		'[data-slot="conversation.session.header"]',
+		'[data-composer-card]',
+		'.wSkVaW_composerSeat',
+		'[data-slot="conversation.composer.bar"]',
+		'[data-chat-flow-kind="user"] [class*="bubble" i]',
+		'[data-chat-flow-kind="user"]',
+		'.uV2eYG_card',
+		'[data-chat-flow-kind="assistant-step"]',
+	]) report(selector);
+
+	// The glass attribute the next build gates the liquid recipe on.
+	lines.push('html data-dshome-glass = ' + JSON.stringify(document.documentElement.getAttribute('data-dshome-glass')));
+	lines.push('@property: CSS.registerProperty ' + (typeof CSS !== 'undefined' && typeof CSS.registerProperty === 'function' ? 'present' : 'ABSENT')
+		+ ' | data-dshome-dispersion ' + String(document.documentElement.hasAttribute('data-dshome-dispersion')));
+	return lines;
+})()`;
+
 const REPORT = `(() => {
 	const info = (element) => {
 		if (!element) return null;
@@ -555,6 +702,16 @@ if (report.header === null) {
 		console.log('  specular vars:       ' + JSON.stringify(spec));
 	}
 
+	if (values.glass) {
+		console.log('\n-- glass surfaces + free pseudo-elements --');
+		for (const line of await cdp.evaluate(GLASS_SURFACES)) console.log(line);
+	}
+
+	if (values.messages) {
+		console.log('\n-- message bubbles (user vs assistant) --');
+		for (const line of await cdp.evaluate(MESSAGES)) console.log(line);
+	}
+
 	if (values.deliverables) {
 		console.log('\n-- deliverables surfaces on the real page --');
 		const before = await cdp.evaluate(DELIVERABLES_BEFORE);
@@ -611,6 +768,19 @@ if (report.header === null) {
 	}
 
 	if (values.shot !== undefined) {
+		// `--pre` runs one page-side expression just before the capture, so a
+		// screenshot can be taken in a state the probe itself cannot reach by
+		// clicking (a specific glass recipe, a specific colour scheme, a hover).
+		// The expression lives in a FILE: an inline expression would be shredded
+		// by PowerShell's native-command argument passing.
+		if (values.pre !== undefined) {
+			if (values['pre-arg'] !== undefined) {
+				await cdp.evaluate('window.__preArg = ' + JSON.stringify(String(values['pre-arg'])) + '; "ok"');
+			}
+			const expression = readFileSync(values.pre, 'utf8');
+			const outcome = await cdp.evaluate('(async () => {\n' + expression + '\n})()');
+			console.log('\npre-shot expression -> ' + JSON.stringify(outcome));
+		}
 		// A cursor is required for anything hover-driven (spot attributes, the
 		// specular variables, the conversation spotlight), so --hover parks the
 		// pointer before the capture.
