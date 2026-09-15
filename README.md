@@ -117,7 +117,21 @@
 
 **主题的处置**（2.0.78）：给会话滚动区加 `overflow-x: clip`（守护块，锚点 `.wSkVaW_scrollBody`，规则按 `[class*="scrollBody"]` 子串匹配，散列类改名也不会静默失效）。横向不再产生滚动条，那 8px 就不存在，闭环断开；每个代码块自己的横向滚动不受影响。代价：超出列宽的部分会被裁掉而不是可滚动 —— 在聊天列里这是更小的恶。**溢出的根因在产品侧，值得上报。**
 
-> 排查方法记在这里，方便复现：`ResizeObserver` 盯住卡片到 body 的祖先链（谁改高度谁自己报），再对滚动区打 `scrollWidth/clientWidth` 与"右边缘越界元素"。
+**第二半：我们自己的倾斜**（2.0.79 已修）。滚动条链条断掉后，真机逐帧采样显示剩下的抖动来自悬停倾斜本身：
+
+```
+card=700/757 … under=div.uV2eYG_row         hovCard=1
+card=700/765 … under=button.uV2eYG_primary  hovCard=1     ← scale(1.01) 把卡片从 757 推到 765
+card=699/761 … under=div.wSkVaW_widthHandle hovCard=0     ← 边缘越过了指针 → 底下换成拖拽把手
+card=700/757 … under=div.wSkVaW_widthHandle hovCard=0     ← 倾斜解除、卡片缩回
+```
+
+指针**静止**时，1% 放大把卡片边缘推出 8px，于是指针底下的元素在"对话框控件"与"列的宽度把手"之间翻转，而每次翻转都会重新武装或解除倾斜 → 因为过渡只有 0.1–0.24s，比被滚动条中介的那条**更快**。修法两条：
+
+1. `TILT_SCALE = 1.01 → 1`：保留倾斜（旋转只动约 1px），去掉会推动边缘 8px 的抬升；
+2. 指针在**交互控件或拖拽把手**上时不倾斜（`TILT_INTERACTIVE`，`pointerover` 与 `pointermove` 双入口判定）—— 倾斜只作用在对话框的空白处。
+
+> 排查方法记在这里，方便复现：`ResizeObserver` 盯住卡片到 body 的祖先链（谁改高度谁自己报），再对滚动区打 `scrollWidth/clientWidth` 与"右边缘越界元素"；最后用 rAF 逐帧记录"指针底下是谁 + 候选元素的矩形"，翻转对就能一眼看出。
 
 ## 健壮性设计（1.33.1+）
 

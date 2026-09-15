@@ -12,6 +12,42 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.79 — 2026-09-15
+
+### 抖动后半段：我们自己的倾斜（`scale(1.01)` + 在控件上也倾斜）
+
+2.0.78 的 `overflow-x: clip` **在真机上确认有效**：新采样里 `scrollWidth/clientWidth = 891/891`、`clientHeight` 恒定 **842**、卡片 top 不再被推 8px——旧的"滚动条 → 上移 8px"链条断了。用户随即反馈"闪得更快了"，逐帧采样（rAF）把剩下的那半抓了出来：
+
+```
+#8  … card=700/757 … under=div.uV2eYG_row        hovCard=1
+#9  … card=700/758 … under=button.uV2eYG_primary hovCard=1
+#16 … card=699/765 … under=button.uV2eYG_primary hovCard=1
+#21 … card=699/761 … under=div.wSkVaW_widthHandle hovCard=0
+#23 … card=700/757 … under=div.wSkVaW_widthHandle hovCard=0
+#27 … card=700/757 … under=div.uV2eYG_row        hovCard=1     ← 循环
+```
+
+- **卡片宽度 757 ↔ 765**（正是 `scale(1.01)` = 757 的 1% ≈ 8px）在指针**静止**时反复涨落；
+- 翻转点上指针底下在**对话框自己的控件**（`uV2eYG_primary`、`uV2eYG_trailing`、`JObwrW_*`）与**列的宽度拖拽把手**（`wSkVaW_widthHandle`）之间来回；
+- 机制：倾斜把卡片边缘推出 8px → 指针底下的元素换人 → 倾斜被解除或重新武装 → 过渡只有 0.1–0.24s，所以**比被滚动条中介的那条更快**（用户感受："闪得更快了"）。
+
+### 修法（两处，都在悬停倾斜里）
+
+1. **不再抬升**：`TILT_SCALE = 1.01 → 1`。倾斜（两个旋转）保留——它只让画面动约 1px，而 1% 放大是唯一会推动卡片边缘 8px 的部分。
+2. **指针在交互控件/拖拽把手上时不倾斜**：新增 `TILT_INTERACTIVE = 'button,[role="button"],a[href],input,textarea,select,[contenteditable],[class*="andle" i]'`，在 `pointerover` 与 `pointermove` 两个入口都判定（后者是必须的：指针可以不动而表面滑到控件下面）。`andle` 用子串匹配覆盖 `wSkVaW_widthHandle` 之类，不钉死散列类名，且大小写不敏感。
+
+效果：倾斜只在对话框的**非控件区域**触发；指针压在按钮上时，卡片一格都不动。代价：悬停按钮时不再有那一点点"抬起来"的立体感——这正是当初造成 8Hz 抖动的那部分。
+
+### 验证
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/bg-recipes-smoke.mjs` **58/58**（新增本版断言：`TILT_SCALE = 1`、两处 `closest(TILT_INTERACTIVE)`、`[class*="andle" i]`）；`tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**。
+- **待你复验**：在原处移动鼠标，抖动应当消失（`window.__dshomeBuild` = `2.0.79 tilt-stands-down`）。若仍有翻转，逐帧采样里 `under=` 会在两个元素之间跳——把那一对名字发我，多半是产品自己的 `uV2eYG_trailing / JObwrW_*` 悬停态在互换，我再按同样方法处理。
+
+### 退路
+`@2.0.78`（只断滚动条链）、`@2.0.77`、`@2.0.76`。
+
+---
+
 ## v2.0.78 — 2026-09-15
 
 ### 修复：「悬停时按钮跳动 + 底部滑块闪」——真凶定位并断链

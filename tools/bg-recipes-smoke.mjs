@@ -229,6 +229,17 @@ check('①②/浓三色 + wallpaper engine prompts a switch to ③, never switch
 check('the conversation scroller refuses horizontal scrolling (2.0.78)',
 	source.includes('anchor: ".wSkVaW_scrollBody"')
 	&& source.includes('[class*="scrollBody"]{overflow-x:clip}'));
+
+// 2.0.79 -- the second half of the jitter, measured once 2.0.78 had removed the
+// scrollbar chain: the tilt's own scale(1.01) moved the card's edge 757 -> 765 px
+// under a stationary cursor, which flipped the element under the pointer between
+// the composer's controls and the column's width handle, re-arming and releasing
+// the tilt at ~8 Hz. Two guards: no lift, and no tilt at all while a control or
+// a drag handle is under the pointer (two call sites: pointerover and pointermove).
+check('the composer tilt no longer lifts, and stands down over controls (2.0.79)',
+	source.includes('const TILT_SCALE = 1;')
+	&& (source.match(/closest\(TILT_INTERACTIVE\)/g) ?? []).length >= 2
+	&& source.includes('[class*="andle" i]'));
 check('the wallpaper sizing follows WallpaperStyle through CSS variables',
 	source.includes("setProperty('--dshome-custom-size'") && source.includes('--dshome-custom-size,cover')
 	&& source.includes('--dshome-custom-repeat,no-repeat'));
