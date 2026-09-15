@@ -39,7 +39,14 @@ const { values } = parseArgs({
 	},
 });
 const home = process.env.DSH_HOME ?? path.join(os.homedir(), '.dsh');
-const modulePath = values.module ?? path.join(home, 'profiles', values.profile, 'node_modules', '@dsh-external', 'dsh-deepseek-style-theme', 'lib', 'index.js');
+// Renamed from the scoped @dsh-external/... to dsh-deepseek-style-theme in
+// 1.43.1; try the new layout first and fall back to profiles installed before
+// the rename.
+const installedModule = (name) => path.join(home, 'profiles', values.profile, 'node_modules', ...name.split('/'), 'lib', 'index.js');
+const modulePath = values.module
+	?? [installedModule('dsh-deepseek-style-theme'), installedModule('@dsh-external/dsh-deepseek-style-theme')]
+		.find((candidate) => fs.existsSync(candidate))
+	?? installedModule('dsh-deepseek-style-theme');
 const settingsPath = values.settings ?? path.join(home, 'settings.yaml');
 
 const key = process.env.DEEPSEEK_API_KEY;

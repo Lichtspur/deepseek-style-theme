@@ -14,6 +14,7 @@
 
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -27,8 +28,15 @@ const { values: opts, positionals } = parseArgs({
 
 const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
 const profile = process.env.DSH_PROFILE ?? 'web';
+// The package was renamed from a scoped @dsh-external/... to the unscoped
+// dsh-deepseek-style-theme in 1.43.1. Both layouts exist in the wild -- the old
+// one on profiles installed before the rename -- so the default tries the new
+// name first and falls back rather than pointing at a path that may not exist.
+const installedModule = (name) => join(home, 'profiles', profile, 'node_modules', ...name.split('/'), 'lib', 'index.js');
 const target = positionals[0]
-	?? join(home, 'profiles', profile, 'node_modules', '@dsh-external', 'dsh-deepseek-style-theme', 'lib', 'index.js');
+	?? [installedModule('dsh-deepseek-style-theme'), installedModule('@dsh-external/dsh-deepseek-style-theme')]
+		.find((candidate) => existsSync(candidate))
+	?? installedModule('dsh-deepseek-style-theme');
 
 const checks = [];
 const check = (name, ok, detail) => {

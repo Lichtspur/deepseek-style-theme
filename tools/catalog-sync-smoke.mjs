@@ -15,11 +15,18 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 
 const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
 const profile = process.env.DSH_PROFILE ?? 'web';
+// Renamed from the scoped @dsh-external/... to dsh-deepseek-style-theme in
+// 1.43.1; profiles installed before the rename still carry the old layout, so
+// try the new name first and fall back.
+const installedModule = (name) => join(home, 'profiles', profile, 'node_modules', ...name.split('/'), 'lib', 'index.js');
 const target = process.argv[2]
-	?? join(home, 'profiles', profile, 'node_modules', '@dsh-external', 'dsh-deepseek-style-theme', 'lib', 'index.js');
+	?? [installedModule('dsh-deepseek-style-theme'), installedModule('@dsh-external/dsh-deepseek-style-theme')]
+		.find((candidate) => existsSync(candidate))
+	?? installedModule('dsh-deepseek-style-theme');
 
 const checks = [];
 const check = (name, ok, detail) => {
