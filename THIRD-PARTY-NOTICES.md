@@ -23,7 +23,16 @@ dispersion / specular-parallax subsystem of **dsh-theme-mineradio v2.3.8**:
 Only naming and external dependencies were adapted: plugin-scoped identifiers
 were renamed to this plugin's `dshome-` prefix, and the upstream settings/theme
 store and React layer were replaced by function parameters. **The GLSL shader
-sources are byte-for-byte copies of upstream.**
+sources are copies of upstream, with one recorded deviation (v2.0.74): the
+`precision mediump float;` qualifier in FLOW_SHADER and DISPLAY_SHADER was
+changed to `precision highp float;`.** The reason is a rendering defect, not a
+feature: under ANGLE/D3D11 on Intel integrated GPUs `mediump` is a real 16-bit
+float (`min16float`), and the display shader's noise --
+`fract(sin(dot(st, vec2(12.9898,78.233))) * 43758.5453123)` -- needs roughly 24
+bits of mantissa, so at 16 bits the hash collapses into constant plateaus and the
+noise lattice shows up as large drifting squares. WebGL2 guarantees highp in
+fragment shaders, and on GPUs that promoted mediump to 32 bits the change is a
+no-op. Every other line of every shader is unchanged.
 
 Upstream notes that its fluid shader is itself a faithful port of the
 `ds-join-shader-bg` shader in the deepseek.com site bundle, with the shader

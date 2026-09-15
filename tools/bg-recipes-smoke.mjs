@@ -158,6 +158,20 @@ const commentEnd = source.indexOf('*/', commentStart);
 check('the background-recipe CSS comment holds no backtick',
 	commentStart > -1 && commentEnd > commentStart && !source.slice(commentStart, commentEnd).includes('`'));
 
+// 2.0.74: `mediump` made the display shader's sin-hash noise collapse into
+// visible drifting squares on GPUs that implement 16-bit floats for real (an
+// Intel Arc iGPU under ANGLE/D3D11 becomes HLSL min16float, while desktop
+// discrete GPUs promote mediump to 32 bits and never showed it). WebGL2
+// guarantees highp in fragment shaders, so both shaders must ask for it and no
+// mediump declaration may come back.
+check('both fluid shaders declare highp, and no mediump returns',
+	(source.match(/^precision highp float;$/gm) ?? []).length === 2 && !/^precision mediump float;$/m.test(source),
+	'highp declarations: ' + (source.match(/^precision highp float;$/gm) ?? []).length
+	+ ', mediump declarations: ' + (source.match(/^precision mediump float;$/gm) ?? []).length);
+// Both halves are anchored to line start on purpose: the header comment in
+// lib/client.js quotes both spellings while explaining the change, and an
+// unanchored search counts those quotes as declarations.
+
 // The two halves again, this time as data: the panel's ids must be the schema's
 // ids. (tools/dstt-schema-smoke.mjs checks the same thing behaviourally.)
 const host = readFileSync(join(dirname(target), 'index.js'), 'utf8');

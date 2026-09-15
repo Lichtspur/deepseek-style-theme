@@ -12,6 +12,43 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.74 — 2026-09-15
+
+### 修复：集显上流体背景出现「飘动的正方形方块」
+
+**症状**：同一份代码，在另一台机器上背景不是平滑洗色，而是一块块**倾斜的方块**在飘。
+
+**归因（在那台机器上实测到的值）**：
+
+```
+build    : 2.0.73 bg-recipes
+dpr      : 1.2395833730697632
+renderer : ANGLE (Intel, Intel(R) Arc(TM) 130V GPU RI (8GB) (0x000064A0) Direct3D11 vs_5_0 ps_5_0, D3D11)
+```
+
+- **主因是 `mediump`**：ANGLE 走 D3D11 时把 GLSL 的 `mediump float` 翻成 HLSL `min16float`，而 **Intel 核显原生就是 16 位浮点**——桌面独显普遍把 mediump 提升为 32 位，所以这台机器上独有。显示着色器的噪声是 `fract(sin(dot(st, vec2(12.9898,78.233))) * 43758.5453123)`，需要约 24 位尾数才读起来像噪声；16 位下哈希塌成常数平台，**噪声格点本身**就成了可见的正方形（这台机器上格子尺寸约等于屏幕宽/13）。着色器的 `uv = rotate(uv, u_rotation*.5*PI)` 让方块是斜的，`u_time` 让它飘 —— 与截图完全一致。
+- **排除项**：`dpr = 1.2396` 低于画布后备尺寸的封顶 1.5，封顶没生效，不是缩放/DPR 问题。
+- 另有一条有用的确认：**能看到方块说明那台机器 WebGL2 是好的**（否则会走粒子回落，画出来是圆点+连线，不是方块）。
+
+**改法**：`precision mediump float;` → `precision highp float;`（FLOW_SHADER / DISPLAY_SHADER 各一处）。ES 3.00 强制片元着色器支持 `highp`，凡是能跑这个背景的引擎都安全；在把 mediump 提升为 32 位的 GPU 上这个改动是**空操作**（你现在这台机器观感不变）。
+
+**署名同步**：三段 GLSL 此前写作「逐字节副本」，现在把**唯一一处改动记录在案**——`THIRD-PARTY-NOTICES.md`、README 的两处说明与 `lib/client.js` 头部注释都改了措辞，上游 MIT 归属与许可原文不变。
+
+### 验证
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/bg-recipes-smoke.mjs`：**44/44**（新增一条「两个着色器都必须声明 highp，且不允许 mediump 回归」）。
+- `tools/dstt-schema-smoke.mjs` **26/26**；`tools/bridge-smoke.mjs` **26/26**。
+- **待复验**：在那台机器上装 2.0.74，`window.__dshomeBuild` 应为 `2.0.74 highp-noise`，方块应当消失。
+
+### 未做（可选，等确认）
+- `u_pixelRatio` 传的是**未封顶的真实 DPR**，而画布后备尺寸按**封顶 1.5** 计算 —— 在 DPR > 1.5 的机器上噪声尺度会比设计值小三分之一，也就是各机器观感略有差异。统一它会让高 DPR 机器上的噪声**变大一点**，即会改动你现在这台喜欢的样子，所以我没有动。
+- npm 仍是 `1.43.12`，插件市场因此还停在旧版本（要发我就 `npm publish`）。
+
+### 退路
+`@2.0.73`（背景方式四选 + 复核修复）、`@1.43.12`（浓三色）、`@1.43.11`（柔和画布）。
+
+---
+
 ## v2.0.73 — 2026-09-15
 
 > 1.43.10–1.43.12 的逐版说明在 `releases/notes-1.43.*.md`（那三版是当晚的连续回滚/修复，未回填进本表）。

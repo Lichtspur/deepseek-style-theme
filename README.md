@@ -8,7 +8,7 @@
 
 | 上游 | 作者 | 本插件用到了什么 |
 |---|---|---|
-| [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) | [@dhicoc](https://github.com/dhicoc) | 流体背景的**三段 GLSL 着色器**（顶点 / 流场 / 显示）是上游的逐字节副本；四分之一分辨率流场 + 双 framebuffer 乒乓的求解器结构、玻璃色散折射滤镜、光标视差、对话框悬停倾斜同样移植自上游 |
+| [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) | [@dhicoc](https://github.com/dhicoc) | 流体背景的**三段 GLSL 着色器**（顶点 / 流场 / 显示）是上游的副本（**唯一改动见 2.0.74：`mediump`→`highp`**，为了让 Intel 核显不再把噪声画成方块）；四分之一分辨率流场 + 双 framebuffer 乒乓的求解器结构、玻璃色散折射滤镜、光标视差、对话框悬停倾斜同样移植自上游 |
 | [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background) | [@HaoyueQin](https://github.com/HaoyueQin) | 液态玻璃配方的**技法来源**（半透明填充 + 竖向光泽 + 背板滤镜链的设计思路），本插件按自己的选择器与 `--dshome-glass-*` 变量重新表达，未复制源码 |
 
 两个项目均为 MIT 许可；完整许可原文见 [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md)，随包发布，再分发时必须保留。详细的移植范围与改写点见下文「[第三方代码与署名](#第三方代码与署名)」。
@@ -272,7 +272,7 @@ MIT
 
 ### 第三方代码与署名
 
-本插件的流体着色器、玻璃折射滤镜与光标视差**移植自 [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) v2.3.8**（MIT，Copyright (c) 2026 John Wu）——三段 GLSL 是上游的**逐字节副本**，只改了命名与外部依赖；1.43.0 的**对话框悬停倾斜**同样移植自上游 `startSpotlight` 的 tilt 分支（常量 `TILT_MAX 0.0175` / `TILT_PERSPECTIVE 800` / `scale(1.01)` / 松手 240ms 后清内联属性，按本主题只作用于对话框）。液态玻璃配方则**仿照 [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background) 的玻璃样式**（MIT，Copyright (c) 2026 HaoyueQin），是按本插件选择器与 `--dshome-glass-*` 变量对该技法的重新表达，未复制其源码。
+本插件的流体着色器、玻璃折射滤镜与光标视差**移植自 [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) v2.3.8**（MIT，Copyright (c) 2026 John Wu）——三段 GLSL 是上游的副本，只改了命名与外部依赖，**外加 2.0.74 记录在案的一处改动：`precision mediump float;` → `precision highp float;`（FLOW_SHADER 与 DISPLAY_SHADER）**，原因是 Intel 核显在 ANGLE/D3D11 下把 `mediump` 当真 16 位浮点，sin 哈希噪声会塌成方块；WebGL2 保证片元着色器支持 `highp`，在把 mediump 提升为 32 位的 GPU 上此改动为空操作。1.43.0 的**对话框悬停倾斜**同样移植自上游 `startSpotlight` 的 tilt 分支（常量 `TILT_MAX 0.0175` / `TILT_PERSPECTIVE 800` / `scale(1.01)` / 松手 240ms 后清内联属性，按本主题只作用于对话框）。液态玻璃配方则**仿照 [deepseek-harness-background](https://github.com/HaoyueQin/deepseek-harness-background) 的玻璃样式**（MIT，Copyright (c) 2026 HaoyueQin），是按本插件选择器与 `--dshome-glass-*` 变量对该技法的重新表达，未复制其源码。
 
 两份完整许可原文见 `THIRD-PARTY-NOTICES.md`，随包发布，再分发时必须保留。
 
