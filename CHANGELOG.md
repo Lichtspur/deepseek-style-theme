@@ -12,6 +12,25 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.77 — 2026-09-15
+
+### 商城适配：壁纸引擎在渲染时，①②/浓三色 给出「切到 ③」提示（**不自动切**）
+
+2.0.76 留下的缺口：壁纸引擎在画壁纸时，①②/浓三色 的流体与主题底色会**盖在它的壁纸上面**（它的图层 `.we-layer{z-index:-2}` 在 body 背景之上、内容之下，而我们的流体在 `z-index:-1`）。原方案是"检测到就自动视为 ③"，按决定改成**提示**：
+
+- DSTT 面板在 `body[data-we-wallpaper]` 存在、且当前档位不是 ③ 时，多出一行**橙色提示**（`.dshome-dstt-warn`）：写明"这一档的流体与底色会盖住它"，右侧一个「切到自选背景」按钮，点一下切到 ③。
+- **绝不替用户改档位**：标记的 MutationObserver 只 `dsttNotify()`（重渲染面板），**不调用** `dsttSetBackground`。冒烟新增一条断言专门钉这个（源码里不得出现 `MutationObserver(() => dsttSetBackground`）。
+- 提示随壁纸引擎启停**实时**出现/消失，无需刷新。
+
+### 验证
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/bg-recipes-smoke.mjs` **56/56**（新增本版断言）；`tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**。
+
+### 退路
+`@2.0.76`、`@2.0.75`、`@2.0.74`。
+
+---
+
 ## v2.0.76 — 2026-09-15
 
 ### 插件商城适配：与 `dsh-plugin-wallpaper-engine` / `dsh-better-sidebar` 共存

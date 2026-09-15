@@ -208,6 +208,16 @@ check('the empty box paints nothing of ours, and `desktop` is the explicit opt-i
 check('the wallpaper-plugin marker is the plugin\'s own attribute',
 	source.includes('const WE_ACTIVE_ATTR = "data-we-wallpaper"')
 	&& source.includes('attributeFilter: [WE_ACTIVE_ATTR]'));
+
+// 2.0.77: while the wallpaper engine renders, ①②/浓三色 keep their fluid and
+// themed background -- which would sit on top of the engine's layer -- so the
+// panel PROMPTS a switch to ③ instead of performing one. That was an explicit
+// product decision (提示而不是自动切换), so nothing in the marker or ambient
+// plumbing may call the setter by itself.
+check('①②/浓三色 + wallpaper engine prompts a switch to ③, never switches itself (2.0.77)',
+	source.includes("pluginPaints && backgroundNow !== 'custom'")
+	&& source.includes("onClick: () => pickBackground('custom')")
+	&& !/MutationObserver\(\(\) => dsttSetBackground/.test(source));
 check('the wallpaper sizing follows WallpaperStyle through CSS variables',
 	source.includes("setProperty('--dshome-custom-size'") && source.includes('--dshome-custom-size,cover')
 	&& source.includes('--dshome-custom-repeat,no-repeat'));
