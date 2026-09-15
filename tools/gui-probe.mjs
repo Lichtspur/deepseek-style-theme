@@ -292,6 +292,14 @@ const AMBIENT = `(() => {
 		dispersion: document.documentElement.hasAttribute('data-dshome-dispersion'),
 		glassSheet: document.querySelector('style[data-plugin-css$="glass.css"]') !== null,
 		spots: document.querySelectorAll('[data-dshome-spot]').length,
+		composerCandidates: ['.fV0t5q_root', '[data-composer-card]', '[class*="composer" i]', '[class*="Composer"]']
+			.map((selector) => selector + '=' + String(document.querySelectorAll(selector).length)).join(' '),
+		composerClass: (() => {
+			const box = document.querySelector('textarea');
+			let node = box === null ? null : box.parentElement;
+			for (let i = 0; i < 4 && node !== null; i += 1) node = node.parentElement;
+			return node === null ? null : String(node.className).slice(0, 70);
+		})(),
 		bubble: glass('.gdEzaW_bubble', null),
 		sidebar: glass('.hHd-Xa_root', '::before')
 	};
@@ -530,6 +538,8 @@ if (report.header === null) {
 		console.log('  refraction mounted:  ' + String(ambientPage.dispersion) + ' (html[data-dshome-dispersion])');
 		console.log('  specular spots:      ' + String(ambientPage.spots) + ' (marked on hover)');
 		console.log('  composer glass:      ' + JSON.stringify(ambientPage.bubble));
+		console.log('  composer candidates: ' + ambientPage.composerCandidates);
+		console.log('  textarea ancestor:   ' + String(ambientPage.composerClass));
 		console.log('  sidebar glass:       ' + JSON.stringify(ambientPage.sidebar));
 		// Hovering a glass surface must stamp the spot attribute and start writing
 		// the two specular variables that GLASS_CSS consumes.

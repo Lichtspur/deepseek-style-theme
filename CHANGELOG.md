@@ -12,6 +12,17 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v1.42.1 — 2026-09-15
+
+### 变更
+- **流体跟随笔刷改为默认关闭**：光标的移动会把速度写进流场，在背景上拖出一条跟随的尾迹。它既是整个模拟里最贵的一部分，也是视觉上最打扰的一项，因此默认关闭。
+- 新增设置项 **DSTT → 流体跟随笔刷**（`deepseek-style-theme.fluidBrush`，默认 `false`）：开启后光标才重新搅动流场。开关会经私有通道与模式一起落盘；**改完刷新页面生效**（监听器在挂载时决定是否绑定）。
+- 关闭时**根本不绑定 `mousemove`**，而不是把强度设成 0——省掉的就是那部分开销。
+- `dstt.mode.get` / `dstt.mode.set` 现在同时承载 `fluidBrush`：`set` 只在显式传入布尔值时才写这一项，不传则只改模式。
+
+### 工具
+- `bridge-smoke` 24 → 26 项：覆盖 `fluidBrush` 的同写与省略行为。
+
 ## v1.42.0 — 2026-09-15
 
 ### 新增

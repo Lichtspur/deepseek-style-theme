@@ -121,6 +121,16 @@ const invalidMode = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'au
 check('legacy/unknown mode rejected on write', invalidMode.json.ok === false && invalidMode.json.error.code === 'bad-request',
 	JSON.stringify(invalidMode.json.error));
 
+// The fluid follow brush ships OFF and is persisted alongside the mode.
+const brush = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-blue', fluidBrush: true } });
+check('dstt.mode.set persists the fluid-brush preference in the same write',
+	brush.json.ok === true && mutated.ops.length === 2 && mutated.ops[1].path[0] === 'fluidBrush' && mutated.ops[1].value === true,
+	JSON.stringify(mutated.ops));
+
+const noBrush = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-blue' } });
+check('omitting fluidBrush leaves it untouched (one op only)', noBrush.json.ok === true && mutated.ops.length === 1,
+	JSON.stringify(mutated.ops));
+
 const relative = await post({ endpoint: 'dshome/explorer.open', payload: { path: 'relative/path' } });
 check('relative path rejected', relative.json.ok === false && relative.json.error.code === 'bad-request',
 	JSON.stringify(relative.json.error));
