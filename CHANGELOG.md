@@ -12,6 +12,38 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.75 — 2026-09-15
+
+### 新增：动态背景总开关（`ambientBackground`，默认开）
+
+给"这层动画背景"一个直接的关断，不再只靠修着色器：
+
+- **关掉 = 不挂载 WebGL2 流体，也不回落到粒子**（不是 CSS 把它藏起来——藏起来的画布照样在算，正是集显最受不了的）。背景只剩静态配色：①②/浓三色就是那套 CSS 底色，③ 就是你自己的图/色。
+- 理由写进设置面板了：集显把流体画成方块、或风扇被它拉满时，关这个。**开关是控制器层面的**（挂载/卸载），所以关掉后 GPU 占用是零，不是"看不见但仍耗电"。
+- 这一版同时保留 2.0.74 的 `mediump → highp` 修复；两者不冲突：`highp` 解决"算错"，开关解决"我不想让它算"。
+
+### 新增：③ 自选背景留空 = 用桌面壁纸（`customBackground` 空值语义）
+
+- **网页读不到系统壁纸**（没有任何 Web API），所以由**宿主端**读：优先 Windows 的 `TranscodedWallpaper`（当前实际显示的那张，含每屏裁切/幻灯片当前帧/纯色），退回注册表 `HKCU\Control Panel\Desktop\WallPaper`，再退回 `HKCU\Control Panel\Colors\Background` 的纯色。
+- 图片经**同源围栏下的 GET 子路径**（`/dshome-open-workspace/wallpaper`）发给本页做 CSS 背景。该端点**不接受任何输入**——没有路径参数、没有查询串，所以它能供出的永远只有宿主自己解析到的那张图；`Cache-Control: no-store`，换了壁纸刷新即见。
+- **铺满方式跟随 Windows 自己的 `WallpaperStyle`**（10 填充 / 22 跨屏 → `cover`，6 适应 → `contain`，2 拉伸 → `100% 100%`，0 居中 → `auto`；`TileWallpaper=1` → `repeat`），所以页面上看起来和桌面一致。
+- 输入框右侧实时给状态：`桌面壁纸 · 已就绪 / 纯色 / 读取中 / 读不到桌面色 · 用主题底色`，旁边有「桌面壁纸」按钮一键切回留空。**空值/读不到都不会白屏**——退回主题底色（沿用 2.0.73 的门控：没有 `data-dshome-customkind` 那五条规则不匹配）。
+- **隐私**：只在你选了 ③ 且输入框留空时读一次本机壁纸，只发给本页（回环），不上传、不缓存、不落盘。README 的隐私一节同步写明。
+
+### 验证（本轮实际跑过的）
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/dstt-schema-smoke.mjs` **29/29**（新增：`ambientBackground=false` 的写入往返 + 设置文件校验 + 读取路径必须回布尔）。
+- `tools/bg-recipes-smoke.mjs` **53/53**（新增：开关必须由**控制器**而非 CSS 生效、面板暴露开关、两端字段名一致、两端端点名/子路径一致、空值→壁纸分支、`WallpaperStyle` → CSS 变量、宿主不信任任何客户端路径）。
+- `tools/bridge-smoke.mjs` **26/26**。
+- **壁纸端点本机实测**（临时探针，起真实路由后 fetch）：`{"kind":"image","url":"/dshome-open-workspace/wallpaper","source":"transcoded","style":22,"tile":false}`，随后 `GET` 该子路径 → `200 image/jpeg 452,964 B`（JPEG 魔数校验通过）。
+- 沙箱下 `spawn EPERM`（Node 抓子进程输出被拦）会被端点吞成 `ok:false`，客户端随即退回主题底色——**失败路径也验过了**。
+- **未做**：集显那台装 2.0.75 后的观感复验（需要你装）。
+
+### 退路
+`@2.0.74`、`@2.0.73`、`@1.43.12`。
+
+---
+
 ## v2.0.74 — 2026-09-15
 
 ### 修复：集显上流体背景出现「飘动的正方形方块」

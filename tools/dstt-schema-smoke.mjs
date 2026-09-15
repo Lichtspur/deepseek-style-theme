@@ -193,6 +193,22 @@ check('write path normalises customBackground',
 check('a settings file holding customBackground still validates',
 	customOp !== undefined && validates(applyOps({ mode: 'always-green' }, mutated.ops)).ok);
 
+// 2.0.75: the animated-background switch. Same invariant, one field over -- and
+// the read path has to report it as a boolean so the panel's switch is never
+// rendered from `undefined`.
+mutated = null;
+const ambientOff = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-green', ambientBackground: false } });
+const ambientOp = mutated === null ? undefined : mutated.ops.find((op) => op.path[0] === 'ambientBackground');
+check('write path persists ambientBackground=false',
+	ambientOff.json.ok === true && ambientOp !== undefined && ambientOp.value === false,
+	JSON.stringify(ambientOp === undefined ? null : ambientOp.value));
+check('a settings file holding ambientBackground=false still validates',
+	ambientOp !== undefined && validates(applyOps({ mode: 'always-green' }, mutated.ops)).ok);
+const ambientRead = await post({ endpoint: 'dstt.mode.get', payload: {} });
+check('the read path reports ambientBackground as a boolean',
+	ambientRead.json.ok === true && typeof ambientRead.json.value.ambientBackground === 'boolean',
+	JSON.stringify(ambientRead.json.value === undefined ? null : ambientRead.json.value.ambientBackground));
+
 // The panel's list lives in lib/client.js and the accepted ids live in
 // lib/index.js. Nothing but this check keeps the two halves in step, and an id
 // the panel offers but the host refuses looks exactly like a broken setting.

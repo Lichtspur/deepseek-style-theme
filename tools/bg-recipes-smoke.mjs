@@ -172,6 +172,35 @@ check('both fluid shaders declare highp, and no mediump returns',
 // lib/client.js quotes both spellings while explaining the change, and an
 // unanchored search counts those quotes as declarations.
 
+// 2.0.75 -- the switch that turns the animated layer off entirely. It has to be
+// the ambient CONTROLLER that honours it (not a CSS hide): a hidden canvas would
+// keep simulating, which is exactly what an iGPU cannot afford. And the setting
+// only exists if the host schema knows it.
+const hostSource = readFileSync(join(dirname(target), 'index.js'), 'utf8');
+check('the schema knows ambientBackground and defaults it on',
+	/z\.boolean\(\)\.default\(true\)/.test(hostSource) && hostSource.includes('ambientBackground'));
+check('the ambient controller gates on the setting, not on CSS',
+	/dsttGetAmbient\(\) && dshomeBackground\(\) !== 'custom'/.test(source));
+check('the panel exposes an ambient switch', source.includes('setAmbient: (next) => dsttSetAmbient(ctx, next)'));
+check('the client sends the field the host stores',
+	source.includes('ambientBackground: dsttState.ambient') && hostSource.includes('payloadObject.ambientBackground'));
+
+// 2.0.75 -- the desktop wallpaper behind 方式3's empty box. The page cannot read
+// the system wallpaper, so the plumbing has to be: host endpoint (JSON status),
+// a raw-bytes sub-path, and a client that only ever points CSS at that sub-path.
+check('both halves name the same wallpaper endpoint',
+	source.includes('"dshome/desktop.wallpaper"') && hostSource.includes('"dshome/desktop.wallpaper"'));
+check('both halves name the same wallpaper sub-path',
+	source.includes('"/wallpaper"') && hostSource.includes('"/wallpaper"'));
+check('an empty box resolves to the desktop wallpaper',
+	/const wantsWallpaper = recipe === 'custom' && \(stored === '' \|\| stored\.toLowerCase\(\) === 'desktop'\)/.test(source));
+check('the wallpaper sizing follows WallpaperStyle through CSS variables',
+	source.includes("setProperty('--dshome-custom-size'") && source.includes('--dshome-custom-size,cover')
+	&& source.includes('--dshome-custom-repeat,no-repeat'));
+check('the host resolves the wallpaper without trusting any client path',
+	hostSource.includes('WALLPAPER_SUBPATH') && hostSource.includes('readDesktopWallpaper')
+	&& !/sendWallpaper\(res, *[a-zA-Z]/.test(hostSource));
+
 // The two halves again, this time as data: the panel's ids must be the schema's
 // ids. (tools/dstt-schema-smoke.mjs checks the same thing behaviourally.)
 const host = readFileSync(join(dirname(target), 'index.js'), 'utf8');
