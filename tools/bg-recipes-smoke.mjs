@@ -218,6 +218,17 @@ check('①②/浓三色 + wallpaper engine prompts a switch to ③, never switch
 	source.includes("pluginPaints && backgroundNow !== 'custom'")
 	&& source.includes("onClick: () => pickBackground('custom')")
 	&& !/MutationObserver\(\(\) => dsttSetBackground/.test(source));
+
+// 2.0.78 -- the jitter + bottom-slider loop, root-caused on the live page: the
+// product's hover affordance on a message lays its row out wider than the column
+// (scrollWidth 917 vs clientWidth 891) -> an 8 px horizontal scrollbar -> the
+// scroll body's content box loses 8 px (842 -> 834) -> the composer pinned below
+// shifts up 8 px -> the pointer lands on another element -> the affordance closes
+// -> and back, at ~5 Hz. The theme's share of the fix is to refuse horizontal
+// scrolling in that column; the anchor keeps it honest if the class is rehashed.
+check('the conversation scroller refuses horizontal scrolling (2.0.78)',
+	source.includes('anchor: ".wSkVaW_scrollBody"')
+	&& source.includes('[class*="scrollBody"]{overflow-x:clip}'));
 check('the wallpaper sizing follows WallpaperStyle through CSS variables',
 	source.includes("setProperty('--dshome-custom-size'") && source.includes('--dshome-custom-size,cover')
 	&& source.includes('--dshome-custom-repeat,no-repeat'));

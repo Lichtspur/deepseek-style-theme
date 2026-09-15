@@ -12,6 +12,33 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.78 — 2026-09-15
+
+### 修复：「悬停时按钮跳动 + 底部滑块闪」——真凶定位并断链
+
+用户报的现象（鼠标在对话框右端移动 → 两颗按钮观感来回跳 + 底部滑块闪进闪出）这一版结案，**根因在产品侧，主题负责断链**：
+
+**定位链（真机采样，证据登录 README 与提交信息）**：
+
+1. 会话滚动区 `wSkVaW_scrollBody` 出现横向溢出：`scrollWidth 917 > clientWidth 891`，**溢出元素是消息行的 `span._bubble_*`** —— 产品在悬停消息时展示的操作栏把那一行撑得比列宽；
+2. 横向溢出 → 生成 **8px 细横向滚动条** → 同一滚动区 `clientHeight 842 → 834`；
+3. 对话框固定在该滚动区下方 → 卡片 `top 699 → 691`（−8px，与滚动区高度严格同步）；
+4. 指针因此落到另一个元素 → 操作栏收起 → 滚动条消失 → 对话框落回 → 回到第 1 步：**~5Hz 两态自激**。
+
+**排除项**（都有数据）：`transform` 不参与布局，所以我们的「对话框悬停倾斜」（±1–3px、`scale(1.01)` 使卡片 757↔765）**不可能**改变任何元素的 `contentRect`——它不是这 8px 的来源；better-sidebar 的中心列标记（`data-dsh-center-col`／`--dsh-sidebar-height`）在该页面上不存在，也已排除。
+
+**处置**：新增守护补丁块 —— 会话滚动区 `overflow-x: clip`（锚点 `.wSkVaW_scrollBody`，规则按 `[class*="scrollBody"]` 子串匹配）。横向不再产生滚动条 → 那 8px 不存在 → 闭环断开。代码块自己的横向滚动不受影响。代价：超出列宽的部分被裁而非可滚动（聊天列里更小的恶）。
+
+### 验证
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/bg-recipes-smoke.mjs` **57/57**（新增本版断言：守护块 + `overflow-x:clip`）；`tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**。
+- **待你复验**：装上后在原来那两颗按钮附近移动鼠标，抖动与滑块应当消失；`window.__dshomeBuild` 应为 `2.0.78 no-sideways-scroll`。
+
+### 退路
+`@2.0.77`、`@2.0.76`、`@2.0.75`。
+
+---
+
 ## v2.0.77 — 2026-09-15
 
 ### 商城适配：壁纸引擎在渲染时，①②/浓三色 给出「切到 ③」提示（**不自动切**）
