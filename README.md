@@ -50,6 +50,7 @@
 - **自有暗色标记**：明暗模式由主题服务的 `active.colorScheme` 驱动到自有属性 `data-dshome-dark`，不依赖产品属性名；
 - **能走 Slot 的 UI 走 Slot**：语言切换注册在 `conversation.session.header.utilities`（产品公开 Slot API）；仅无 Slot 的表面（工作区行菜单、交付文件卡片）使用 DOM 补丁。
 - **逐层降级而不是整块失效**（1.42.0+）：背景先探测 WebGL2，拿不到就用粒子实现（`startParticles` 完整保留），着色器编译/链接失败同样返回空操作句柄而不是抛错；折射滤镜只在引擎真的支持 SVG `backdrop-filter` 时才挂 `data-dshome-dispersion`，其余浏览器静默保留普通毛玻璃；连 `backdrop-filter` 都不支持时由 `@supports not (...)` 回落为不透明填充。
+- **玻璃的开销在哪，是量出来的**（1.43.0）：压测（复制 30 个真实气泡、同屏 9～10 个）显示 **SVG 折射滤镜几乎免费**（带/不带 `feDisplacementMap` 差 0.9fps），真正花钱的是 `backdrop-filter` 这个能力本身（去掉它 63 → 80fps）；不上玻璃则是 124.8fps。当前配方在同屏 9～10 个玻璃气泡下仍有 ~60fps（p95 20.9ms，无超过 32ms 的帧），而侧边栏 / 对话框 / 标题栏三处在无压测时与白磨砂完全同速（94.4 / 94.6 fps）。**同屏用户气泡通常是 2～5 个**，所以不为此牺牲观感。数据与四个变体的完整表格见 `CHANGELOG.md` 的 v1.43.0 条目。
 
 ### `dsh.client.inject` 的语义：加载顺序，不是 import
 
