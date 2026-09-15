@@ -36,6 +36,7 @@ const { values } = parseArgs({
 		cdp: { type: 'string', default: process.env.DSH_CDP ?? 'http://127.0.0.1:9222' },
 		models: { type: 'boolean', default: false },
 		'file-card': { type: 'boolean', default: false },
+		deliverables: { type: 'boolean', default: false },
 	},
 });
 const ORIGIN = values.url.replace(/\/+$/, '');
@@ -187,9 +188,79 @@ const FILE_CARD = `(async () => {
 	}
 	const closedAfterPick = document.querySelector('.dshome-file-menu') === null;
 
+	// The changed-file chip surface is a different product component, anchored on
+	// [data-produced-files-row]; its plain left click must open this menu and its
+	// own action must survive as the preview item.
+	const row = document.createElement('div');
+	row.setAttribute('data-produced-files-row', 'true');
+	row.setAttribute(PROBE + '-row', 'true');
+	row.style.cssText = 'position:fixed;left:20px;top:280px;z-index:2147483004';
+	const chip = document.createElement('button');
+	chip.type = 'button';
+	chip.setAttribute('title', 'C:\\\\probe\\\\produced-notes.md');
+	chip.textContent = 'produced-notes.md';
+	let chipOwnClicks = 0;
+	chip.addEventListener('click', () => { chipOwnClicks += 1; });
+	row.appendChild(chip);
+	document.body.appendChild(row);
+	chip.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 60, clientY: 300 }));
+	const chipMenu = document.querySelector('.dshome-file-menu');
+	const chipItems = chipMenu === null ? [] : Array.from(chipMenu.querySelectorAll('.dshome-file-menu-item')).map((node) => node.textContent.trim());
+	const chipOwnClicksBeforePick = chipOwnClicks;
+	if (chipMenu !== null && chipItems.length === 4) {
+		chipMenu.querySelectorAll('.dshome-file-menu-item')[3].click();
+		await new Promise((resolve) => setTimeout(resolve, 80));
+	}
+	const closedAfterChipPick = document.querySelector('.dshome-file-menu') === null;
+	row.remove();
+
 	card.remove();
 	clear();
-	return { styleTag, menuOpened: menu !== null, items, placed, toast, previews, closedAfterPick };
+	return {
+		styleTag, menuOpened: menu !== null, items, placed, toast, previews, closedAfterPick,
+		chipMenuOpened: chipMenu !== null, chipItems, chipOwnClicksBeforePick,
+		chipOwnClicksAfterPick: chipOwnClicks, closedAfterChipPick
+	};
+})()`;
+
+const DELIVERABLES_BEFORE = `(() => {
+	const chips = Array.from(document.querySelectorAll('[data-produced-files-row] button')).map((node) => ({
+		title: node.getAttribute('title'),
+		text: (node.textContent || '').trim()
+	}));
+	const cards = Array.from(document.querySelectorAll('[data-presented-file]')).map((node) => {
+		const overlay = node.querySelector('button[title]');
+		return overlay === null ? null : overlay.getAttribute('title');
+	});
+	// Does our menu reach the changed-file chips at all? It is anchored on
+	// [data-presented-file], which the product renders from a different component
+	// than [data-produced-files-row].
+	let rightClickOpened = null;
+	const first = document.querySelector('[data-produced-files-row] button');
+	if (first !== null) {
+		first.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 400 }));
+		rightClickOpened = document.querySelector('.dshome-file-menu') !== null;
+		for (const node of document.querySelectorAll('.dshome-file-menu,.dshome-file-menu-toast')) node.remove();
+	}
+	return { chips, cards, rightClickOpened };
+})()`;
+
+const DELIVERABLES_CLICK = `(() => {
+	const first = document.querySelector('[data-produced-files-row] button');
+	if (first === null) return null;
+	const before = { nodes: document.querySelectorAll('body *').length, dialogs: document.querySelectorAll('[role="dialog"],[aria-modal="true"]').length };
+	window.__probeDeliverableBefore = before;
+	first.click();
+	return before;
+})()`;
+
+const DELIVERABLES_AFTER = `(() => {
+	const before = window.__probeDeliverableBefore ?? { nodes: 0, dialogs: 0 };
+	return {
+		before,
+		after: { nodes: document.querySelectorAll('body *').length, dialogs: document.querySelectorAll('[role="dialog"],[aria-modal="true"]').length },
+		menuOpen: document.querySelector('.dshome-file-menu') !== null
+	};
 })()`;
 
 const REPORT = `(() => {
@@ -417,6 +488,21 @@ if (report.header === null) {
 		console.log('  offered: ' + JSON.stringify(await cdp.evaluate(MODEL_ROWS)));
 	}
 
+	if (values.deliverables) {
+		console.log('\n-- deliverables surfaces on the real page --');
+		const before = await cdp.evaluate(DELIVERABLES_BEFORE);
+		console.log('  produced chips: ' + String(before.chips.length) + (before.chips.length === 0 ? '' : ' ' + JSON.stringify(before.chips.slice(0, 3))));
+		console.log('  presented cards: ' + String(before.cards.length) + (before.cards.length === 0 ? '' : ' ' + JSON.stringify(before.cards.slice(0, 3))));
+		console.log('  right-click on a produced chip opens our menu: ' + String(before.rightClickOpened));
+		const clicked = await cdp.evaluate(DELIVERABLES_CLICK);
+		if (clicked === null) {
+			console.log('  (no produced chip to click)');
+		} else {
+			await delay(900);
+			console.log('  clicking a produced chip -> ' + JSON.stringify(await cdp.evaluate(DELIVERABLES_AFTER)));
+		}
+	}
+
 	if (values['file-card']) {
 		console.log('\n-- delivered-file card menu (synthetic card) --');
 		try {
@@ -432,6 +518,11 @@ if (report.header === null) {
 		console.log('  copy-path toast:      ' + JSON.stringify(card.toast));
 		console.log('  preview clicks:       ' + String(card.previews) + ' (must be 1)');
 		console.log('  closed after picking: ' + String(card.closedAfterPick));
+		console.log('  -- changed-file chip ([data-produced-files-row]) --');
+		console.log('  left click opened:    ' + String(card.chipMenuOpened));
+		console.log('  items:                ' + JSON.stringify(card.chipItems));
+		console.log('  chip own clicks:      ' + String(card.chipOwnClicksBeforePick) + ' -> ' + String(card.chipOwnClicksAfterPick) + ' (the product handler must fire exactly once, on pick)');
+		console.log('  closed after picking: ' + String(card.closedAfterChipPick));
 	}
 
 	try {
