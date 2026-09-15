@@ -54,17 +54,51 @@
 		canvasInfo = { size: [canvas.width, canvas.height], z: cs(canvas).zIndex, centrePixel: centre, contextLost: gl === null ? 'no gl' : gl.isContextLost() };
 	}
 
+	// 3b) 所有背景画布（不止第一块）。「主题是否被挂载了两次」用这个一眼可辨：
+	//     同一个选择器命中 2 块、或存在别的不带 data 属性的 canvas，都说明有第二份实例在画。
+	const allCanvases = Array.from(document.querySelectorAll('canvas')).map((node) => {
+		const style = cs(node);
+		const box = node.getBoundingClientRect();
+		let centre = null;
+		const gl = node.getContext('webgl2');
+		if (gl !== null && !gl.isContextLost()) {
+			const px = new Uint8Array(4);
+			try {
+				gl.readPixels(Math.floor(node.width / 2), Math.floor(node.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+				centre = Array.from(px);
+			} catch (e) { centre = 'readPixels failed'; }
+		}
+		return {
+			attrs: Array.from(node.attributes).filter((a) => a.name.startsWith('data-')).map((a) => a.name),
+			box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)],
+			backing: [node.width, node.height],
+			z: style.zIndex,
+			centrePixel: centre
+		};
+	});
+
 	// 4) 主题注入的样式表是否还在，以及明暗规则是否真的命中
 	const sheets = Array.from(document.querySelectorAll('style[data-plugin-css]')).map((n) => n.dataset.pluginCss).filter((n) => n.includes('deepseek-style-theme'));
 	const darkRuleMatches = Array.from(document.styleSheets).some((sheet) => {
 		try { return Array.from(sheet.cssRules).some((rule) => String(rule.selectorText || '').includes('data-dshome-dark')); } catch (e) { return false; }
 	});
 
+	// 4b) 这份产物是新的还是旧的：新构建的流体参数同步函数叫 syncFluid。
+	const buildProbe = (() => {
+		let patched = 'unknown';
+		try {
+			patched = typeof window.__dshomeBuild === 'string' ? window.__dshomeBuild : 'no marker (older build)';
+		} catch (e) { patched = 'error'; }
+		return patched;
+	})();
+
 	const report = {
 		when: new Date().toISOString(),
 		productSignals,
 		ourMarkers,
 		canvas: canvasInfo,
+		allCanvases,
+		buildMarker: buildProbe,
 		themeSheets: sheets,
 		darkRulePresent: darkRuleMatches,
 		// 结论行：背景此刻应该是深色还是浅色
