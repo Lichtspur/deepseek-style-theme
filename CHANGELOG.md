@@ -12,6 +12,37 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.76 — 2026-09-15
+
+### 插件商城适配：与 `dsh-plugin-wallpaper-engine` / `dsh-better-sidebar` 共存
+
+商城里的壁纸引擎与右侧栏是本主题会**重叠**的两个插件（壁纸引擎的 prerequisites 还明确要求 better-sidebar）。这一版把分工写成契约（README 新增「插件商城适配」一节，含适配清单表）：
+
+**③ 自选背景的语义重写**（本轮核心）：
+
+| 状态 | 背景由谁画 |
+|---|---|
+| ③ + 壁纸引擎正在渲染（`body[data-we-wallpaper]`） | **它**。我们流体卸载、主题底色让位、**连纯白也不画** |
+| ③ + 没有壁纸引擎 | **我们**：纯白（浅色）/ 纯黑（深色） |
+| ③ + 输入框填了图片 / CSS 值 / `desktop` | **我们**（若壁纸引擎在跑，它在壁纸引擎图层之下） |
+| ①②/浓三色 | 我们（per-colour 渐变 + 流体），与从前一致 |
+
+- **探测只读**：壁纸引擎渲染时会在 `body` 上置 `data-we-wallpaper`（它自己的 `ACTIVE_ATTR`），停止时移除；本插件用 MutationObserver 跟随，**不读它的设置、不写它的属性、不碰它的 DOM**。它的壁纸层是 `.we-layer{z-index:-2}`（body 背景之上、内容之下），所以"我们不画"才是正确解，而不是拿白色垫在它下面。
+- **让位靠选择器，不靠 `!important`**：主题自己的四条背景规则改成带 `:not([data-dshome-bg=custom])`，进 ③ 就不匹配；壁纸引擎自己的 `body[data-we-wallpaper]` 样式因此不会被我们压掉。它管设置窗/侧栏玻璃的两个开关（`data-we-glass-window` / `data-we-sidebar-glass`）我们不插手。
+- **`desktop` 变成显式取值**：留空不再等于"用本机壁纸"（2.0.75 的临时语义），留空 = **不画**（纯白/纯黑或让位）。要用本机壁纸就在 ③ 里点「桌面壁纸」按钮（写入 `desktop`），宿主端读取与铺满方式不变（`WallpaperStyle` → CSS 变量）。
+- **better-sidebar 不越界**：只读 `[data-dsh-better-sidebar]` / `[data-dsh-center-col]` 作文档与自查线索，不写中心列尺寸、不动它的 tab 栏与面板内部；README 记下它与本主题「对话框悬停倾斜」的**已知交互**（它的面板宿主几何同步遇到**页面级** transform 会降级；我们的倾斜是卡片级，若同装后出现悬停抖动，按 README 的两步二分定位）。
+
+### 验证
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/bg-recipes-smoke.mjs` **55/55**：新增「四条 `:not([data-dshome-bg=custom])` 选择器让位」「flat / none 两个基底规则」「空值不再解析为壁纸、`desktop` 是显式取值」「壁纸引擎标记就是它自己的属性且被 MutationObserver 跟随」。
+- `tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**；壁纸端点本机端到端（2.0.75 已验，含 `spawn EPERM` 失败路径）。
+- 期间冒烟**又抓到一次**「CSS 注释里写反引号把模板字面量提前闭合」（第三次，其中两次是我犯的）——守卫按预期生效。
+
+### 退路
+`@2.0.75`、`@2.0.74`、`@2.0.73`。
+
+---
+
 ## v2.0.75 — 2026-09-15
 
 ### 新增：动态背景总开关（`ambientBackground`，默认开）

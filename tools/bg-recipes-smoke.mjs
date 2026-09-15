@@ -104,7 +104,7 @@ for (const family of FAMILIES) {
 // FIRST image layer (so the picture stays visible under it), all gated on the
 // kind attribute the client only writes after CSS.supports() accepted a value.
 const css = {
-	base: 'body[data-dshome-bg=custom][data-dshome-customkind]{',
+	base: 'body[data-dshome-bg=custom]{background-image:none',
 	color: 'body[data-dshome-bg=custom][data-dshome-customkind=color]{background-color:var(--dshome-custom-bg',
 	image: 'body[data-dshome-bg=custom][data-dshome-customkind=image]{background-color:#f6f7fb!important;background-image:var(--dshome-custom-bg',
 	darkColor: 'body[data-dshome-dark][data-dshome-bg=custom][data-dshome-customkind=color]{background-image:linear-gradient(rgb(0 0 0/.55),rgb(0 0 0/.55))',
@@ -113,8 +113,16 @@ const css = {
 for (const [name, needle] of Object.entries(css)) {
 	check(`custom-background sheet has the ${name} rule`, source.includes(needle));
 }
-check('the custom rules are gated on the kind attribute, so an unusable value keeps the themed background',
-	source.includes('body[data-dshome-bg=custom][data-dshome-customkind]{') && !source.includes('body[data-dshome-bg=custom]{'));
+check('③ stands our own themed backgrounds down by SELECTOR, not by !important',
+	source.includes('body:not([data-dshome-bg=custom]){background:radial-gradient(')
+	// Anchored on the brace: the CSS comment that explains this guard quotes the
+	// selector too, and an unanchored count sees five instead of four.
+	&& (source.match(/:not\(\[data-dshome-bg=custom\]\)\{/g) ?? []).length === 4,
+	'selector guards: ' + (source.match(/:not\(\[data-dshome-bg=custom\]\)\{/g) ?? []).length);
+check('③ has a flat base and a paint-nothing base (2.0.76)',
+	source.includes('body[data-dshome-bg=custom][data-dshome-bgbase=flat]{background-color:#ffffff}')
+	&& source.includes('body[data-dshome-dark][data-dshome-bg=custom][data-dshome-bgbase=flat]{background-color:#000000}')
+	&& source.includes('body[data-dshome-bg=custom][data-dshome-bgbase=none]{background-color:transparent}'));
 
 // 2.0.73 regression: the sheet opens with `html,body{background-color:transparent!important}`,
 // and an author-important declaration beats any non-important one no matter how
@@ -185,15 +193,21 @@ check('the panel exposes an ambient switch', source.includes('setAmbient: (next)
 check('the client sends the field the host stores',
 	source.includes('ambientBackground: dsttState.ambient') && hostSource.includes('payloadObject.ambientBackground'));
 
-// 2.0.75 -- the desktop wallpaper behind 方式3's empty box. The page cannot read
-// the system wallpaper, so the plumbing has to be: host endpoint (JSON status),
-// a raw-bytes sub-path, and a client that only ever points CSS at that sub-path.
+// 2.0.75/2.0.76 -- the Windows wallpaper, now behind an EXPLICIT `desktop` value
+// rather than an empty box (an empty box means paint-nothing, per the 2.0.76
+// marketplace-adaptation semantics). The page cannot read the system wallpaper,
+// so the plumbing is: host endpoint (JSON status), a raw-bytes sub-path, and a
+// client that only ever points CSS at that sub-path.
 check('both halves name the same wallpaper endpoint',
 	source.includes('"dshome/desktop.wallpaper"') && hostSource.includes('"dshome/desktop.wallpaper"'));
 check('both halves name the same wallpaper sub-path',
 	source.includes('"/wallpaper"') && hostSource.includes('"/wallpaper"'));
-check('an empty box resolves to the desktop wallpaper',
-	/const wantsWallpaper = recipe === 'custom' && \(stored === '' \|\| stored\.toLowerCase\(\) === 'desktop'\)/.test(source));
+check('the empty box paints nothing of ours, and `desktop` is the explicit opt-in',
+	/const wantsDesktop = stored\.toLowerCase\(\) === 'desktop'/.test(source)
+	&& source.includes("pluginPaints ? 'none' : 'flat'"));
+check('the wallpaper-plugin marker is the plugin\'s own attribute',
+	source.includes('const WE_ACTIVE_ATTR = "data-we-wallpaper"')
+	&& source.includes('attributeFilter: [WE_ACTIVE_ATTR]'));
 check('the wallpaper sizing follows WallpaperStyle through CSS variables',
 	source.includes("setProperty('--dshome-custom-size'") && source.includes('--dshome-custom-size,cover')
 	&& source.includes('--dshome-custom-repeat,no-repeat'));
