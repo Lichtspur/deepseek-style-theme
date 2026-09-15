@@ -180,9 +180,8 @@ for (const value of ['classic', 'white', 'custom', 'bold']) {
 mutated = null;
 const bogus = await post({ endpoint: 'dstt.mode.set', payload: { mode: 'always-green', backgroundMode: 'nope' } });
 check('write path refuses an unknown backgroundMode',
-	(bogus.json.ok === true || bogus.json.ok === false)
-		&& mutated.ops.every((op) => op.path[0] !== 'backgroundMode'),
-	JSON.stringify(mutated.ops.map((op) => op.path[0])));
+	mutated === null || mutated.ops.every((op) => op.path[0] !== 'backgroundMode'),
+	mutated === null ? 'nothing was written' : JSON.stringify(mutated.ops.map((op) => op.path[0])));
 
 // A custom background is free text, and the host normalises it before storing:
 // control characters become spaces, then the result is trimmed and bounded.

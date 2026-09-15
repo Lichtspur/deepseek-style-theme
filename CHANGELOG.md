@@ -33,10 +33,21 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
   - **深色蒙版**：`linear-gradient(rgb(0 0 0/.55),rgb(0 0 0/.55))` 放在 `background-image` 的**第一层**，图仍在下面看得见；纯色背景同样压这一层。
   - **空值 / 不合法值不白屏**：五条 CSS 全部门控在 `data-dshome-customkind` 上，不匹配就退回主题自己的底色；输入框右侧实时给「可用 · 图片 / 可用 · 纯色 / 暂不可用 / 留空 = 用回默认底色」。
 
+### 发布前复核修掉的三处（其中一个是从 1.43.6 就埋着的老雷）
+
+一次独立复核（只读、钉在提交上）抓出两处 blocker + 一处 should-fix，都已修：
+
+1. **`darkSync` 不在作用域里**（`lib/client.js`，继承自 1.43.6）：`startAmbient()` / `startParticles()` 都读 `darkSync`，而它当时是 `apply()` 的局部变量，两个函数根本看不到 —— 每次挂载都抛 `ReferenceError`，又被挂载处的 `try/catch` 吞掉。后果：**画布起来了但拿不到 disposer**，所以 ③ 自选背景「卸载画布」是空操作（0.55 的流体照样盖在你的图上）；无 WebGL2 的粒子回落更是「append 了但没 resize、没起动画」；深浅色订阅与令牌 MutationObserver 也从未注册（一直只靠那个 200ms 轮询撑着，所以没人发现）。修法：把 `let darkSync = null;` 提到工厂作用域（`apply()` 里只做赋值）。
+2. **自选背景的「纯色」根本没画上去**：本样式表第一行就是 `html,body{background-color:transparent!important}`，作者 `!important` 压过任何非 `!important`，而我的三条 `background-color` 没带 —— 于是 ③ 选纯色时颜色静默失效，同时基规则已经把主题渐变清掉了（两个图片兜底色 `#f6f7fb` / `#0b0f17` 也一样失效）。修法：那三条 `background-color` 加 `!important`（`background-image` 不受那条规则影响，不需要）。
+3. **面板自己宣传的写法被自己拒了**：占位符第一个示例是裸 URL（`https://…/bg.jpg`），但裸 URL 既不是 `<color>` 也不是 `<url>` 记号，`CSS.supports` 两边都不认 → 显示「暂不可用」且不生效。修法：新增 `normalizeBackgroundValue()`，URL 形状的值先包成 `url("…")`（转义引号/反斜杠、去掉换行）再校验与落盘。
+
+顺带按复核意见收的小尾巴：`data-dshome-bg` 注释写错成 `<html>`（实为 `<body>`）；输入框未提交的草稿在面板卸载（Esc/关闭设置）时会丢，现在**卸载前先提交**（用 latest-ref 拿最新草稿，另加 Esc 即提交）；启动时先按默认 `classic` 挂载再拆会闪一下流体，现在**等首次持久化读取落地再挂**（新增 `dsttState.settled`）；自定义值归一化后回显的比对改为 trim 后比较；`dstt-schema-smoke` 的未知 id 断言去掉了一个恒真表达式并加了空值保护。
+
 ### 验证（本轮实际跑过的）
 - `node --check lib/index.js lib/client.js` —— 两者通过。
 - `tools/dstt-schema-smoke.mjs` —— **26/26 全绿**：原 10 项 + 背景字段往返 8 项 + 未知 id 拒写 + 自定义值归一化（`"  url(x.png)\n\t  "` → `"url(x.png)"`）+ 「客户端枚举 = 宿主枚举」跨文件检查。
-- 新增 `tools/bg-recipes-smoke.mjs` —— **36/36 全绿**：钉住 ① 含纯白与近白、② 只有两个颜色参与、`bold` 浅色下无 `#FFFFFF`、③ 五条 CSS 规则与 kind 门控、宿主 schema 认得四个 id。
+- `tools/bg-recipes-smoke.mjs` —— **43/43 全绿**：钉住 ① 含纯白与近白、② 只有两个颜色参与、`bold` 浅色下无 `#FFFFFF`、③ 五条 CSS 规则与 kind 门控、宿主 schema 认得四个 id，**加上**上面三处修复的回归断言（`darkSync` 必须在工厂作用域且只声明一次、三条 `background-color` 必须带 `!important`、裸 URL 必须被包成 `url()`、CSS 注释里不得出现反引号）。
+- `tools/bridge-smoke.mjs` —— **26/26**。
 - **未做**：装进 profile 的无头像素实测（1.43.12 那种表）。需要就说一声，我把 2.0.73 装进 web profile 跑 `tools/gui-probe.mjs`。
 
 ### 退路

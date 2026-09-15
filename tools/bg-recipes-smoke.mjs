@@ -106,15 +106,57 @@ for (const family of FAMILIES) {
 const css = {
 	base: 'body[data-dshome-bg=custom][data-dshome-customkind]{',
 	color: 'body[data-dshome-bg=custom][data-dshome-customkind=color]{background-color:var(--dshome-custom-bg',
-	image: 'body[data-dshome-bg=custom][data-dshome-customkind=image]{background-color:#f6f7fb;background-image:var(--dshome-custom-bg',
+	image: 'body[data-dshome-bg=custom][data-dshome-customkind=image]{background-color:#f6f7fb!important;background-image:var(--dshome-custom-bg',
 	darkColor: 'body[data-dshome-dark][data-dshome-bg=custom][data-dshome-customkind=color]{background-image:linear-gradient(rgb(0 0 0/.55),rgb(0 0 0/.55))',
-	darkImage: 'body[data-dshome-dark][data-dshome-bg=custom][data-dshome-customkind=image]{background-color:#0b0f17;background-image:linear-gradient(rgb(0 0 0/.55),rgb(0 0 0/.55)),var(--dshome-custom-bg'
+	darkImage: 'body[data-dshome-dark][data-dshome-bg=custom][data-dshome-customkind=image]{background-color:#0b0f17!important;background-image:linear-gradient(rgb(0 0 0/.55),rgb(0 0 0/.55)),var(--dshome-custom-bg'
 };
 for (const [name, needle] of Object.entries(css)) {
 	check(`custom-background sheet has the ${name} rule`, source.includes(needle));
 }
 check('the custom rules are gated on the kind attribute, so an unusable value keeps the themed background',
 	source.includes('body[data-dshome-bg=custom][data-dshome-customkind]{') && !source.includes('body[data-dshome-bg=custom]{'));
+
+// 2.0.73 regression: the sheet opens with `html,body{background-color:transparent!important}`,
+// and an author-important declaration beats any non-important one no matter how
+// specific. Without !important on these three, the user's colour (and the two
+// fallback colours) painted nothing while the base rule above had already
+// stripped the themed gradients -- the colour silently did nothing.
+for (const needle of [
+	'customkind=color]{background-color:var(--dshome-custom-bg,transparent)!important}',
+	'customkind=image]{background-color:#f6f7fb!important',
+	'[data-dshome-customkind=image]{background-color:#0b0f17!important'
+]) {
+	check('custom background colours out-rank the sheet transparent !important',
+		source.includes(needle), needle.slice(0, 46));
+}
+
+// 2.0.73 regression: startAmbient()/startParticles() read `darkSync`, so the
+// binding must live at FACTORY scope -- as a local of apply() the read threw
+// ReferenceError, the mount's try/catch swallowed it, and no disposer was ever
+// returned: ③ kept the fluid canvas painting over the user's background, and the
+// particle fallback was appended but never sized or animated. Factory scope is
+// exactly two tabs here; a second declaration would be a different bug.
+check('darkSync is declared at factory scope, not inside apply()',
+	/^\t\tlet darkSync = null;$/m.test(source) && !/^\t\t\tlet darkSync = null;$/m.test(source));
+check('darkSync is declared exactly once', (source.match(/\blet darkSync\b/g) ?? []).length === 1);
+
+// 2.0.73 regression: the panel's own placeholder offers a bare URL first, and a
+// bare URL is neither a <color> nor a <url> token -- it has to be wrapped into
+// url("...") before anything probes or stamps it.
+check('bare URLs are normalised into a url() token before use',
+	source.includes('function normalizeBackgroundValue')
+	&& /function backgroundKind\(value\) \{\n\t\t\tconst text = normalizeBackgroundValue\(value\);/.test(source)
+	&& source.includes("'url(\"' + text.replace(/[\\\\\"]/g"));
+
+// Twice now a comment in this CSS block has been written with a backtick in it,
+// which closes the CORE_CSS template literal early and turns the rest of the
+// sheet into JavaScript. `node --check` catches the fallout, but only after the
+// fact and with a confusing message; the file is a template literal, so the rule
+// is simply: no backticks in here.
+const commentStart = source.indexOf('/* ── background recipe');
+const commentEnd = source.indexOf('*/', commentStart);
+check('the background-recipe CSS comment holds no backtick',
+	commentStart > -1 && commentEnd > commentStart && !source.slice(commentStart, commentEnd).includes('`'));
 
 // The two halves again, this time as data: the panel's ids must be the schema's
 // ids. (tools/dstt-schema-smoke.mjs checks the same thing behaviourally.)
