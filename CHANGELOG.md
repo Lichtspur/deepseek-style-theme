@@ -29,6 +29,19 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 - **自转扫边高光只保留在侧边栏**。对话框与消息气泡上的那条被反馈为"一圈白描边"而不是"光在玻璃边缘走"——小胶囊上它读不出流光。
 
 ### 修复
+- **【明暗标记】两次把两个信号的可靠性搞反了，已恢复出厂优先级并在两种模式下实测**。明暗标记由两个信号推导，本轮先后试过两种"改进"，各自踩中一个信号的毛病，都由用户现场读数定位：
+
+  | 信号 | 实测行为 |
+  |---|---|
+  | 主题服务 `theme.getTheme().active.colorScheme` | **在深色页面上报 `light`** —— 不可靠 |
+  | `body[data-ds-dark-theme]` | 深色 `true`、浅色 `false`，两次都对 —— 可靠 |
+  | `getComputedStyle(html).colorScheme` | 深色 `"dark"`、浅色 `"light"`，两次都对 —— 可靠（产品写在 `<html style>` 上的实时声明） |
+
+  - 改成**属性优先** → 浅色模式被画成深色；
+  - 改成**服务优先且属性仅在服务不可用时兜底** → 深色模式被画成浅色（服务谎报 light，兜底根本不执行）。
+
+  恢复为出厂那句 `if (!dark) dark = 属性`——服务说 light 时由属性纠正。用户随后给出两种模式的四元读数（见上表），确认两种模式**均已正确**。这段逻辑自此不再改动，两个反例已写进代码注释。
+  - 注意：这**不是**回退"浅底浅字"的修复。那次真正的修法是把 label token 声明在本主题自己的标记下、让背景与文字永远同侧；把属性提权只是治标，撤回它不影响那个修复。
 - **【发布阻塞】设置取值白名单与 schema 不一致**：本轮把 `origin` 改名 `wide` 时，改到了写入路径的白名单（`COMPOSER_REFRACTIONS`）与设置页按钮来源（`DSTT_COMPOSER`），**漏了注册给设置服务的 schema 联合类型**。后果链条是：白名单放行 `wide` → 写进 `settings.yaml` → **下次启动 `register()` 校验已存文档时抛错 → DSTT 持久化整个死掉**（不是降级）。这正是 `lib/index.js` 里 1.37.x 那批遗留 mode id 存在的原因，同一轮又踩了一遍。
   - 修法两个方向都不能少：schema **补上 `wide` 同时保留 `origin`**。只加 `wide` 会让旧设置文件（存着 `origin`）在升级后校验失败；只留 `origin` 就是本次缺陷、新值存不进去。读侧另有一层迁移（`dsttComposerValue` 把 `origin` 读成 `wide`）。
   - **新增 `tools/dstt-schema-smoke.mjs`（10 项）**把这个不变量钉住：写入路径允许的每个值都必须能被注册的 schema 校验通过，遗留 id 是唯一例外。
