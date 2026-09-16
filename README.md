@@ -50,7 +50,7 @@
 - **流体跟随笔刷**（`fluidBrush`，默认关）：开启后光标才把速度写进流场、拖出尾迹；**改完刷新页面生效**。
 - **玻璃风格**（`glassStyle`，默认 `液态`）：
   - **液态**（1.43.0+）：Apple Liquid Glass 方向——填充降到 `rgb(255 255 255 / .14)`、顶部光泽降到 `.07`，背板链改为靠 `saturate(1.75)` 让身后颜色发亮，共用的 `feDisplacementMap` 走更大的 scale（104，白磨砂仍是 60），边框上再跑一圈自走的 `conic-gradient` 高光（`@property` 注册的 `<angle>`，与鼠标无关）。上玻璃的只有四处：**侧边栏外壳 / 对话框 / 标题栏（悬停）/ 用户消息气泡**；
-  - **白磨砂**：1.42.x 那套白磨砂 + 蓝变光边框，**逐像素不变**（新配方整块挂在 `html[data-dshome-glass="liquid"]` 下，已用 1991 个元素的计算样式签名验证过：切到白磨砂时新样式表贡献为零）。
+  - **白磨砂**：1.42.x 那套白磨砂 + 蓝变光边框，**样式逐像素不变**（新配方整块挂在 `html[data-dshome-glass="liquid"]` 下，已用 1991 个元素的计算样式签名验证过：切到白磨砂时新样式表贡献为零）。**唯一的例外是悬停倾斜**：它自 2.0.82 起两套配方都生效（原先只在液态下挂），运动与配方无关——见「已知产品侧缺陷」一节；
 
 ### 高峰判定（1.37.0+）
 
@@ -88,7 +88,7 @@
 
 - **探测**：只读 DOM 标记 `[data-dsh-better-sidebar]`（它的面板宿主）与 `[data-dsh-center-col]`（它给中心列打的标记）；宿主侧无需任何配合。
 - **布局**：它用 `#root [data-dsh-center-col]{margin-bottom:var(--dsh-sidebar-height)}` 把会话列顶起来；本主题**不写中心列的尺寸、不动它的 tab 栏 / 面板内部**，只对产品自己的表面（侧栏外壳、对话框、标题栏）做玻璃与配色。
-- **已知交互（重要）**：它的面板宿主几何同步会在检测到**页面级 transform** 时降级（它自己会打 `data-dsh-panel-host-degraded`）。本主题的「对话框悬停倾斜」会给对话框卡片写 `transform: perspective(800px) … scale(1.01)` —— 这是**卡片级**而非页面级，正常情况无碍；但若你在同装后看到悬停抖动 / 底部滑块闪动，先把 **DSTT → 动态背景** 关掉、再试 `玻璃风格 → 白磨砂`（白磨砂下倾斜不生效），即可二分定位是谁在动。
+- **已知交互（重要）**：它的面板宿主几何同步会在检测到**页面级 transform** 时降级（它自己会打 `data-dsh-panel-host-degraded`）。本主题的「对话框悬停倾斜」会给对话框卡片写 `transform: perspective(800px) … scale(1.01)` —— 这是**卡片级**而非页面级，正常情况无碍；但若你在同装后看到悬停抖动 / 底部滑块闪动，先按上一节的顺序二分：`__dshomeTilt()` 看倾斜此刻是否在动、`tilt(false)` 一行冻结它、再 `ambient(false)` 关掉动态背景画布（2.0.82 起两套玻璃配方都会倾斜，所以"切白磨砂"不再是有效的二分手段）。
 - **右侧栏配色**：它面板内部的配色由它自己管；本主题的深色规则只覆盖产品原生的右栏表面（`.VOzbGW_panel` 等），不改它的 class 命名空间。
 
 ### 适配清单（写给以后接手的人）
@@ -117,7 +117,7 @@
 
 **主题的处置**（2.0.78）：给会话滚动区加 `overflow-x: clip`（守护块，锚点 `.wSkVaW_scrollBody`，规则按 `[class*="scrollBody"]` 子串匹配，散列类改名也不会静默失效）。横向不再产生滚动条，那 8px 就不存在，闭环断开；每个代码块自己的横向滚动不受影响。代价：超出列宽的部分会被裁掉而不是可滚动 —— 在聊天列里这是更小的恶。**溢出的根因在产品侧，值得上报。**
 
-**第二半：我们自己的倾斜**（2.0.79 已修）。滚动条链条断掉后，真机逐帧采样显示剩下的抖动来自悬停倾斜本身：
+**第二半：我们自己的倾斜**（2.0.79 想修，2.0.82 才算修对）。滚动条链条断掉后，真机逐帧采样显示剩下的抖动来自悬停倾斜本身：
 
 ```
 card=700/757 … under=div.uV2eYG_row         hovCard=1
@@ -126,12 +126,19 @@ card=699/761 … under=div.wSkVaW_widthHandle hovCard=0     ← 边缘越过了�
 card=700/757 … under=div.wSkVaW_widthHandle hovCard=0     ← 倾斜解除、卡片缩回
 ```
 
-指针**静止**时，1% 放大把卡片边缘推出 8px，于是指针底下的元素在"对话框控件"与"列的宽度把手"之间翻转，而每次翻转都会重新武装或解除倾斜 → 因为过渡只有 0.1–0.24s，比被滚动条中介的那条**更快**。修法两条：
+指针**静止**时，1% 放大把卡片边缘推出 8px，于是指针底下的元素在"对话框控件"与"列的宽度把手"之间翻转，而每次翻转都会重新武装或解除倾斜 → 因为过渡只有 0.1–0.24s，比被滚动条中介的那条**更快**。
 
-1. `TILT_SCALE = 1.01 → 1`：保留倾斜（旋转只动约 1px），去掉会推动边缘 8px 的抬升；
-2. 指针在**交互控件或拖拽把手**上时不倾斜（`TILT_INTERACTIVE`，`pointerover` 与 `pointermove` 双入口判定）—— 倾斜只作用在对话框的空白处。
+**2.0.79 修错了**：它把抬升去掉（`TILT_SCALE: 1.01 → 1`），并把 `input / textarea / [contenteditable]` 也算成"不能压在动面上的控件"。两条都是矫枉过正，而且同因：**输入框几乎盖满整张卡片**，把它排除等于让倾斜在"鼠标放到对话框上"这个它唯一存在的姿势里永不触发，抬升也跟着一起没了。用户报回来的是「鼠标放在对话框，放大、倾斜没了」——修法本身成了新的缺陷。
 
-> 排查方法记在这里，方便复现：`ResizeObserver` 盯住卡片到 body 的祖先链（谁改高度谁自己报），再对滚动区打 `scrollWidth/clientWidth` 与"右边缘越界元素"；最后用 rAF 逐帧记录"指针底下是谁 + 候选元素的矩形"，翻转对就能一眼看出。
+**2.0.82 的修法（保留效果，切断回路）**：
+
+1. **抬起回来**：`TILT_SCALE` 恢复 `1.01`；
+2. **输入框上可以倾斜**：`TILT_CONTROLS` 只留 `button / [role=button] / a[href] / [class*="andle" i]`，文字录入不再挡。倾斜是**带着输入框一起动**的，指针不会因此掉出输入框；
+3. **滞回取代"越界即释放"**（关键）：指针进入控件时**冻结当前角度**——不重画、不回弹、不重新武装；回到卡片空白处再续；只有指针**离开卡片自己的矩形**才释放，释放后还有 `TILT_COOLDOWN_MS = 200` 的冷却期才允许下一次进入。那条自激回路需要"释放"来喂它，而现在指针静止时倾角是**死的**，没有任何反馈通路。
+4. **两套玻璃配方都倾斜**：原先 `paint` / `onOver` 各有一道"不是液态就早退"的闸门（理由是白磨砂要保持逐像素不变），结果是**用白磨砂的人永远看不到这个效果**——用户点名的第二条要求就是「白磨砂玻璃也要有」。现在闸门拆掉，而且运动**自带过渡**（`TILT_TRANSITION`，值与原液态样式表里那条相同），这样任何配方都不会因为少了一条 `transition: transform` 而变成硬跳；
+5. 状态可从页面直接读：`window.__dshomeTilt()` → `{ recipe, leaning, frozen, engagements, sinceRelease }`。"效果不见了"因此不再需要猜是哪道闸门吃掉的。
+
+> 排查方法记在这里，方便复现：`ResizeObserver` 盯住卡片到 body 的祖先链（谁改高度谁自己报），再对滚动区打 `scrollWidth/clientWidth` 与"右边缘越界元素"；最后用 rAF 逐帧记录"指针底下是谁 + 候选元素的矩形"，翻转对就能一眼看出。跨机器复现用 `tools/symptom-probe.js`（贴进控制台，`run(秒)` 同时采样 GPU 状态与光标下的逐字段 diff，`tilt(false)` 一行就能把倾斜冻结做对照）。
 
 ## 健壮性设计（1.33.1+）
 
@@ -311,7 +318,7 @@ dsh plugin --profile web remove dsh-deepseek-style-theme
 | `symptom-probe-selftest.mjs` | 上面那份探针的自测（19 项）：在一个合成页面上跑（我们自己的 canvas + 带超宽子元素的消息列 + 每 60 ms 改一次 transform 的卡片 + CDP 派发真实鼠标移动），断言环境报告的字段形状、`run()` 的采样与逐字段 diff、五个开关的实际效果（含 `clip` 在 `overflow-y:auto` 旁会计算成 `hidden` 这条 CSS Overflow 3 规则） | `chrome --headless=new --remote-debugging-port=9333 --user-data-dir=%TEMP%\dsh-probe-chrome about:blank`，然后 `node tools/symptom-probe-selftest.mjs` |
 | `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径 / `file.*` 端点识别与校验，24 项检查；加 `--open` 为 25 项，会真的用系统默认应用打开一个临时文件，**会在桌面弹出窗口**，默认不启用） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js] [--open]` |
 | `dstt-schema-smoke.mjs` | DSTT 设置 schema 与写入路径的一致性：**每个能写进 `settings.yaml` 的值都必须过 `register()` 的校验**（1.43.2 那次 schema 缺 `wide` 的发布阻塞就靠它守）。含背景方式四档的往返、未知 id 拒写、自定义背景的归一化（控制字符→空格、去首尾、长度上限）、动态背景开关的读写与布尔回读，以及「客户端枚举 = 宿主枚举」的跨文件检查（29 项） | `node tools/dstt-schema-smoke.mjs [lib/index.js]` |
-| `bg-recipes-smoke.mjs` | 客户端源码层的数据与契约断言（2.0.73+，随每版增补）：① 必须含纯白 + 近白、② 只有两个颜色参与、`bold` 浅色无 `#FFFFFF`、③ 的基底/让位规则与选择器守卫、壁纸引擎标记与「提示而非自动切换」、桌面壁纸端点与 `WallpaperStyle` 映射、`darkSync` 作用域、两条反引号守卫（整表扫描）、`TILT_SCALE = 1` 与「控件上不倾斜」、发送按钮 hover 不再位移、流场 16F 探测与回退（61 项） | `node tools/bg-recipes-smoke.mjs [lib/client.js]` |
+| `bg-recipes-smoke.mjs` | 客户端源码层的数据与契约断言（2.0.73+，随每版增补）：① 必须含纯白 + 近白、② 只有两个颜色参与、`bold` 浅色无 `#FFFFFF`、③ 的基底/让位规则与选择器守卫、壁纸引擎标记与「提示而非自动切换」、桌面壁纸端点与 `WallpaperStyle` 映射、`darkSync` 作用域、两条反引号守卫（整表扫描）、发送按钮 hover 不再位移、流场 16F 探测与回退、**悬停倾斜的抬升 1.01 与 `TILT_CONTROLS` 不含文字录入、进入控件时冻结而非释放、释放只在离开卡片矩形、两套玻璃配方都生效（2.0.82）**、横向裁切覆盖消息列/对话框/转写区（64 项） | `node tools/bg-recipes-smoke.mjs [lib/client.js]` |
 | `fluid-precision-test.mjs` | **流场存储精度对照实验**（2.0.81+）：把 `lib/client.js` 里的真实 `VERTEX_SHADER` / `FLOW_SHADER` 抠出来，在无头 Chrome 里对同一场景各跑 240 步，分别存 RGBA8 与 RGBA16F，读回统计"取值分布 / 落在 1/255 网格上的层级 / max / mean"，并判定 16F 是否真的摆脱了量化（5 项）。**需要 Chromium 系浏览器**，且 Chrome 在受限进程里起不来，请从普通终端跑 | `node tools/fluid-precision-test.mjs [--chrome <路径>] [--keep]` |
 | `catalog-sync-smoke.mjs` | 模型目录同步的全部分支：一致 / 可描述漂移 / 聚合网关目录 / 只追加 / `off` / baseURL 解析顺序 / 无密钥 / 端点故障 / 命名空间未就绪 / 版本冲突（27 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
 | `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |

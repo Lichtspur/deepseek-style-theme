@@ -247,20 +247,55 @@ check('①②/浓三色 + wallpaper engine prompts a switch to ③, never switch
 // shifts up 8 px -> the pointer lands on another element -> the affordance closes
 // -> and back, at ~5 Hz. The theme's share of the fix is to refuse horizontal
 // scrolling in that column; the anchor keeps it honest if the class is rehashed.
-check('the conversation scroller refuses horizontal scrolling (2.0.78)',
+check('the conversation scroller refuses horizontal scrolling (2.0.78, widened 2.0.82)',
 	source.includes('anchor: ".wSkVaW_scrollBody"')
-	&& source.includes('[class*="scrollBody"]{overflow-x:clip}'));
+	&& source.includes('[class*="scrollBody"],[class*="composerSeat"],[class*="viewArea"]{overflow-x:clip}'));
+// The widening matters because the 8px step under the send button only needs ONE
+// `overflow-y: auto` container with a hover-grown child (the other axis computes to
+// auto). The first report named the message list; the composer's seat and the view
+// area can produce the same step, so all three are clipped now.
+check('the clip covers the composer and view area too, not just the list (2.0.82)',
+	(source.match(/overflow-x:clip/g) ?? []).length >= 1
+	&& !/\[class\*="scrollBody"\]\{overflow-x:clip\}/.test(source));
 
-// 2.0.79 -- the second half of the jitter, measured once 2.0.78 had removed the
-// scrollbar chain: the tilt's own scale(1.01) moved the card's edge 757 -> 765 px
-// under a stationary cursor, which flipped the element under the pointer between
-// the composer's controls and the column's width handle, re-arming and releasing
-// the tilt at ~8 Hz. Two guards: no lift, and no tilt at all while a control or
-// a drag handle is under the pointer (two call sites: pointerover and pointermove).
-check('the composer tilt no longer lifts, and stands down over controls (2.0.79)',
-	source.includes('const TILT_SCALE = 1;')
-	&& (source.match(/closest\(TILT_INTERACTIVE\)/g) ?? []).length >= 2
-	&& source.includes('[class*="andle" i]'));
+// 2.0.79 chased the second half of the jitter by removing the tilt's lift and by
+// listing text entry as an interactive control. 2.0.82 reverts BOTH, and this
+// assertion is deliberately replaced rather than extended: the old one pinned
+// `TILT_SCALE = 1`, which enshrined a mis-fix. The reason is the input: it covers
+// the card, so excluding it meant the tilt stopped engaging for the very gesture it
+// exists for -- reported as "鼠标放在对话框，放大和倾斜没了" -- and the lift left
+// with it. What guards the loop now is hysteresis, which removes the feedback path
+// without removing the effect: entering a control FREEZES the lean (no repaint, no
+// release, no re-arm), it resumes on the card body, and it is released only when the
+// pointer leaves the card's own box, plus a cooldown before the next engagement.
+// The loop needed that release to feed it; a lean held still under a stationary
+// pointer cannot feed anything.
+check('the composer tilt keeps its lift and engages over the input (2.0.82)',
+	source.includes('const TILT_SCALE = 1.01;')
+	&& source.includes('const TILT_CONTROLS = \'button,[role="button"],a[href],[class*="andle" i]\';')
+	&& !/TILT_CONTROLS = '[^']*(input|textarea|contenteditable)/.test(source));
+// The recipe gate is gone on purpose: the tilt used to return early unless the
+// glass was `liquid`, which made the effect invisible on the white frosted recipe
+// ("白磨砂玻璃也要有"). Because the liquid sheet was the only place carrying
+// `transition: transform`, the motion now carries its own transition -- a recipe
+// can no longer lose the easing, and it is removed with the inline transform.
+check('the composer tilt runs under both glass recipes (2.0.82)',
+	!source.includes("if (dsttGetGlass() !== 'liquid') return;")
+	&& !source.includes("if (dsttGetGlass() !== 'liquid') {")
+	&& source.includes('const TILT_TRANSITION = ')
+	&& source.includes('spot.style.transition = TILT_TRANSITION;')
+	&& (source.match(/removeProperty\('transition'\)/g) ?? []).length >= 2);
+check('entering a control freezes the composer tilt instead of releasing it (2.0.82)',
+	source.includes('const TILT_COOLDOWN_MS = 200;')
+	&& source.includes('let frozen = false;')
+	&& source.includes('if (frozen) return;')
+	&& source.includes('if (current !== spot || frozen) return;')
+	&& (source.match(/closest\(TILT_CONTROLS\)/g) ?? []).length >= 2
+	&& (source.match(/frozen = true;/g) ?? []).length >= 2
+	// The release survives in exactly one place: the pointer leaving the card's
+	// own box. That rect guard is what keeps the effect off the hover loop.
+	&& source.includes('if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) return;')
+	&& source.includes('window.__dshomeTilt = ()'));
 
 // 2.0.80 -- the last geometry change this theme made to the send/stop button
 // itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is

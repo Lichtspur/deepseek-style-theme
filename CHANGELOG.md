@@ -12,6 +12,36 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.82 — 2026-09-15
+
+### 修复：2.0.79 把「对话框悬停的放大 + 倾斜」修没了（本次恢复），并把横向滚动条那条修法扩到整个会话列
+
+**用户报回**：按钮跳动的 bug 仍在，而且**鼠标放到对话框上，放大和倾斜都没了**。后者是 2.0.79 的直接后果，两条都矫枉过正：
+
+1. `TILT_SCALE: 1.01 → 1` 去掉了抬升（= 放大）；
+2. 把 `input / textarea / [contenteditable]` 也算成"不能压在动面上的控件"——**输入框几乎盖满整张卡片**，把它排除等于让倾斜在"鼠标放到对话框上"这个它唯一存在的姿势里永不触发。
+
+两条同因：为了切断一条自激回路，把效果本身删掉了。**这是修法造成的缺陷，不是用户的错觉。**
+
+### 改法（保留效果，切断回路）
+
+- `TILT_SCALE` 恢复 **1.01**；
+- `TILT_INTERACTIVE` 更名 `TILT_CONTROLS`，只留 `button / [role=button] / a[href] / [class*="andle" i]`——**文字录入不再挡**（倾斜是带着输入框一起动的，指针不会掉出去）；
+- **滞回取代"越界即释放"**：指针进入控件时**冻结当前角度**（不重画、不回弹、不重新武装），回到卡片空白处续上，只有指针**离开卡片自己的矩形**才释放，释放后有 `TILT_COOLDOWN_MS = 200` 冷却才允许下一次进入。那条回路需要"释放"来喂它；指针静止时倾角是死的，没有反馈通路；
+- **两套玻璃配方都倾斜**（用户第二条要求：「白磨砂玻璃也要有」）：原先 `paint` 与 `onOver` 各有一道"不是 `liquid` 就早退"的闸门，白磨砂用户永远看不到这个效果。闸门拆掉，并且**运动自带过渡** `TILT_TRANSITION`（值与原液态样式表里那条相同，随内联 transform 一起清掉），配方少一条 `transition: transform` 也不会变成硬跳；
+- 新增诊断 `window.__dshomeTilt()` → `{ recipe, leaning, frozen, engagements, sinceRelease }`：效果"不见了"时先看 `recipe`（两套配方现在都该倾斜，`engagements` 一直是 0 才说明守卫有问题）；
+- **横向裁切扩到整个会话列**：`[class*="scrollBody"]` → `[class*="scrollBody"],[class*="composerSeat"],[class*="viewArea"]`。机制只需要**一个** `overflow-y: auto` 的容器（另一轴会计算成 `auto`，于是能长出横向滚动条）+ 一个悬停变宽的子孙；首次报告点名的是消息列，但**同样的 8px 台阶可以来自对话框自己的容器**，那是 2.0.78 没覆盖到的部分。弹到 `<body>` 的浮层不受影响。
+
+### 验证
+- `node --check lib/index.js lib/client.js` 通过。
+- `tools/bg-recipes-smoke.mjs` **64/64**（本版替换了 2.0.79 那条断言——它把 `TILT_SCALE = 1` 钉住了，等于把一次误修固化进回归测试；新断言钉抬升 1.01、`TILT_CONTROLS` 不含文字录入、冻结两处入口、冷却、"释放只发生在离开卡片矩形"、"两套配方都生效 + 运动自带过渡"）；`tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**。
+- **按钮跳动仍未结案**：本版把"横向滚动条"这一类的覆盖面补全，但**没有**拿到症状机器的逐帧数据。现场探针 `tools/symptom-probe.js`（19 项自测全绿）可一次给出：补丁块是否落地、每个横向溢出容器及其超宽子元素、`run(秒)` 的逐字段 diff（谁的 box/transform 在动、动了几 px、多快）、以及 `tilt(false)` / `clip(true)` / `glass(false)` 对照。
+
+### 退路
+`@2.0.81`（方块那条的治本版）、`@2.0.80`、`@2.0.78`（横向裁切的首版，注意它同时含被本版撤销的倾斜改动）。
+
+---
+
 ## v2.0.81 — 2026-09-15
 
 ### 治本：流场从 RGBA8 换成 RGBA16F（集显"飘方块"的根因）
