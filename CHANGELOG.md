@@ -12,6 +12,34 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.85 — 2026-09-16
+
+### 对话框倾斜：触发方式改成几何判定，不再依赖 `pointerover`；两条静默闸门也暴露出来
+
+用户第三次要这个效果：「把我的对话框随着鼠标的位置而变化的效果补回来😭」——这次确认是**倾斜**（不是光标高光/折射）。
+
+**改了什么**
+
+1. **触发改成按指针几何位置判定**。原来倾斜必须在 `pointerover` 里 `target.closest(TILT_SELECTOR)` 命中卡片，这串假设（产品把卡片换成别的节点、外面套一层 `role=button`、浮层/portal 挡住）主题自己无法验证，而一旦不成立，表现和"效果坏了"完全一样。现在每个 `pointermove` 都用 `spotAt()` 按**卡片自身的矩形**判定（`controlAt()` 只保留一次命中测试，用来回答"指针下是不是控件"），漏掉一个事件只损失一帧，不损失效果。
+2. **两条静默闸门变成可读的**：`__dshomeTilt()` 现在报 `{ recipe, reducedMotion, spots, leaning, frozen, engagements, sinceRelease }`——
+   - `reducedMotion: true` 时倾斜被系统"减少动效"关掉（**这是唯一一个在任何设置里都看不见的闸门**，现在会打一行 `console.info` 说明）；
+   - `spots: 0` 表示对话框卡片已不匹配 `TILT_SELECTOR`（产品改标就得改选择器）。
+   没生效时先看这两个值，就不用再猜是哪一层吃掉了效果。
+3. 原有的滞回语义不变：进入控件**冻结**当前角度（不重画、不回弹、不重新武装）、离开卡片矩形才释放、释放后 200ms 冷却；抬升 `scale(1.01)`、两套玻璃配方都生效同 2.0.82。
+
+### 顺带：光标高光/折射不再挂在流动背景上（本来是给上一条准备的，一并留下）
+
+`startSpecularSpotter()` / `startSpecularParallax()` / `startGlassDispersion()` 原先都在 `startAmbient()` 里挂：于是**关掉「动态背景」**（集显方块那件事就是这么处理的）、选 ③ 自选背景、或机器没有 WebGL2（粒子回落在这三行之前 return）时，对话框的光标高光与边缘折射会**一起消失**。现在它们由独立的 `startGlassExtras()` 挂载，与背景配方无关。这条不是你这次要的那个效果，但同一个"效果因为别的开关而消失"的毛病。
+
+### 验证
+- `tools/parse-smoke.mjs` **13/13**；`tools/bg-recipes-smoke.mjs` **75/75**（新增 2 条：倾斜按几何判定 + 两条闸门可读、高光/折射挂在流体层之外）；`tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**。
+- **真机复核仍未做**（审批策略为 never，起不了 headless Chrome）。装包后请跑一行：把鼠标放到对话框上，`__dshomeTilt()` 的 `engagements` 应随移动增长、`leaning` 应为 `true`；若 `reducedMotion` 是 `true`，去系统「辅助功能 → 视觉效果 → 动画效果」打开即可；若 `spots` 是 `0`，把那台机器的对话框卡片类名发我。
+
+### 退路
+`@2.0.84`、`@2.0.82`。
+
+---
+
 ## v2.0.84 — 2026-09-16
 
 ### 修 BUG-REPORT-dstt-2.0.82 的四条 + 2.0.83 的激活期崩溃

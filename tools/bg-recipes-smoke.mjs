@@ -290,12 +290,26 @@ check('entering a control freezes the composer tilt instead of releasing it (2.0
 	&& source.includes('let frozen = false;')
 	&& source.includes('if (frozen) return;')
 	&& source.includes('if (current !== spot || frozen) return;')
-	&& (source.match(/closest\(TILT_CONTROLS\)/g) ?? []).length >= 2
 	&& (source.match(/frozen = true;/g) ?? []).length >= 2
 	// The release survives in exactly one place: the pointer leaving the card's
 	// own box. That rect guard is what keeps the effect off the hover loop.
 	&& source.includes('if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) return;')
 	&& source.includes('window.__dshomeTilt = ()'));
+// 2.0.85 -- engagement is geometric. It used to require a `pointerover` whose
+// target sat inside the card, which is a chain of assumptions about product markup
+// the theme cannot verify (a wrapper with role=button, a swapped-in card node, an
+// overlay), and getting it wrong looks exactly like a broken effect. `spotAt()`
+// decides from the card's own rectangle now; `controlAt()` is the only hit test
+// left, and only to answer "is this a control". The two silent gates are also
+// reported from the page: `reducedMotion` (an OS setting that looks like a bug) and
+// `spots` (0 when the composer markup no longer matches TILT_SELECTOR).
+check('the composer tilt engages by geometry and reports its gates (2.0.85)',
+	source.includes('const spotAt = (clientX, clientY) =>')
+	&& source.includes('const controlAt = (clientX, clientY) =>')
+	&& (source.match(/controlAt\(event\.clientX, event\.clientY\)/g) ?? []).length >= 2
+	&& source.includes('reducedMotion: reduced')
+	&& source.includes('spots: document.querySelectorAll(TILT_SELECTOR).length')
+	&& source.includes('composer tilt disabled: the system asks for reduced motion'));
 
 // ── 2.0.83: the two load-time hazards `node --check` cannot see ───────────────
 // B1 of the 2026-09-16 report: `var ATTR = "data-dshome-dispersion";` was deleted
@@ -335,6 +349,19 @@ for (const match of source.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)\s*\}/g)) {
 check('no template interpolation reads a const before its declaration (2.0.83)',
 	earlyInterpolations.length === 0,
 	[...new Set(earlyInterpolations)].slice(0, 4).join(', '));
+
+// 2.0.85 -- the cursor-following glass extras must NOT live inside the fluid layer.
+// They were mounted from startAmbient(), which tied the dialog's specular highlight
+// and its edge refraction to the flow field: turning 「动态背景」 off (exactly what the
+// iGPU squares forced the user to do), choosing ③ 自选背景, or landing on an engine
+// without WebGL2 (the particle fallback returns before them) silently removed both.
+// Reported as "把我的对话框随着鼠标位置而变化的效果补回来".
+const ambientBody = source.slice(source.indexOf('function startAmbient()'), source.indexOf('function startGlassExtras()'));
+check('the cursor-following glass extras mount outside the fluid layer (2.0.85)',
+	ambientBody.length > 0
+	&& !/startSpecularSpotter|startSpecularParallax|startGlassDispersion/.test(ambientBody)
+	&& source.includes('function startGlassExtras()')
+	&& source.includes('return startGlassExtras();'));
 
 // 2.0.80 -- the last geometry change this theme made to the send/stop button
 // itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is
