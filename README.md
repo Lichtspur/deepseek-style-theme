@@ -303,10 +303,12 @@ dsh plugin --profile web remove dsh-deepseek-style-theme
 
 ## 自测工具（开发用，不随包发布）
 
-`tools/` 里的脚本都在本机直接跑，**不进发布产物**（`package.json` 的 `files` 只含 `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE`）。除 `gui-probe.mjs` 与 `--open` 的 `bridge-smoke.mjs` 外，都不需要浏览器、不需要网络。
+`tools/` 里的脚本都在本机直接跑，**不进发布产物**（`package.json` 的 `files` 只含 `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE`）。除 `gui-probe.mjs`、`symptom-probe-selftest.mjs` 与 `--open` 的 `bridge-smoke.mjs` 外，都不需要浏览器、不需要网络。
 
 | 工具 | 作用 | 运行 |
 |---|---|---|
+| `symptom-probe.js` | **贴进浏览器控制台的现场探针**（2.0.81+）：专门给「症状机器不是开发机」的情况用。先打印一份环境 JSON——每个补丁块是否落到 DOM 上（`style[data-plugin-css]` 清单 + 13 个锚点是否存在：锚点按产品构建哈希命名，换构建就会静默跳过，2.0.78 的 `overflow-x: clip` 就是靠它守住的）、`data-dshome-*` 标记、每块 canvas 的 z-index/opacity/所在 GPU/是否 context lost、消息列的 `scrollWidth - clientWidth` 与超宽/自溢出的子元素、发送按钮等控件的盒模型与 transition；再给 `run(秒)`：**同时**采样 GPU 状态（fps、context lost、`gl.getError()`、canvas 尺寸抖动）与光标下的逐帧变化（命中元素链、盒、transform、padding、margin 的逐字段 diff，带 240 条截断与变化率），最后是 `tilt(false)` / `clip(true)` / `ambient(false)` / `wallpaper(false)` / `glass(false)` 五个开关，用来把「关掉 X 之后症状还在不在」变成一句话答案。不写任何设置、不弹权限框 | 控制台粘贴整份文件 |
+| `symptom-probe-selftest.mjs` | 上面那份探针的自测（19 项）：在一个合成页面上跑（我们自己的 canvas + 带超宽子元素的消息列 + 每 60 ms 改一次 transform 的卡片 + CDP 派发真实鼠标移动），断言环境报告的字段形状、`run()` 的采样与逐字段 diff、五个开关的实际效果（含 `clip` 在 `overflow-y:auto` 旁会计算成 `hidden` 这条 CSS Overflow 3 规则） | `chrome --headless=new --remote-debugging-port=9333 --user-data-dir=%TEMP%\dsh-probe-chrome about:blank`，然后 `node tools/symptom-probe-selftest.mjs` |
 | `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径 / `file.*` 端点识别与校验，24 项检查；加 `--open` 为 25 项，会真的用系统默认应用打开一个临时文件，**会在桌面弹出窗口**，默认不启用） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js] [--open]` |
 | `dstt-schema-smoke.mjs` | DSTT 设置 schema 与写入路径的一致性：**每个能写进 `settings.yaml` 的值都必须过 `register()` 的校验**（1.43.2 那次 schema 缺 `wide` 的发布阻塞就靠它守）。含背景方式四档的往返、未知 id 拒写、自定义背景的归一化（控制字符→空格、去首尾、长度上限）、动态背景开关的读写与布尔回读，以及「客户端枚举 = 宿主枚举」的跨文件检查（29 项） | `node tools/dstt-schema-smoke.mjs [lib/index.js]` |
 | `bg-recipes-smoke.mjs` | 客户端源码层的数据与契约断言（2.0.73+，随每版增补）：① 必须含纯白 + 近白、② 只有两个颜色参与、`bold` 浅色无 `#FFFFFF`、③ 的基底/让位规则与选择器守卫、壁纸引擎标记与「提示而非自动切换」、桌面壁纸端点与 `WallpaperStyle` 映射、`darkSync` 作用域、两条反引号守卫（整表扫描）、`TILT_SCALE = 1` 与「控件上不倾斜」、发送按钮 hover 不再位移、流场 16F 探测与回退（61 项） | `node tools/bg-recipes-smoke.mjs [lib/client.js]` |
@@ -337,6 +339,8 @@ node tools/gui-probe.mjs --models --file-card
 │   ├── bridge-smoke.mjs            # 宿主端私有 RPC 通道冒烟测试
 │   ├── catalog-sync-smoke.mjs      # 模型目录同步冒烟测试（六种分支）
 │   ├── catalog-sync-live.mjs       # 同步的真端点/真密钥校验（写入不落盘）
+│   ├── symptom-probe.js            # 贴进控制台的现场探针（环境报告 + 采样 + 逐帧 diff + 开关）
+│   ├── symptom-probe-selftest.mjs  # 上面那份探针的自测（合成页面 + CDP 真实鼠标）
 │   └── gui-probe.mjs               # 实时页面的无头浏览器探测与像素扫描
 └── lib/
     ├── index.js                    # host 端：打开工作区 / 交付文件 RPC、DSTT 设置、模型目录同步
