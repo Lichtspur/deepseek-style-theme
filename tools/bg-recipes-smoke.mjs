@@ -430,12 +430,21 @@ check('the workspace-list fade is dropped in both recipes (2.0.87)',
 	source.includes('body .hHd-Xa_root [class*="_fade" i]{')
 	&& !source.includes('html[data-dshome-glass="liquid"] body .hHd-Xa_root [class*="_fade" i]{'));
 check('the line under the composer carries the lens touch (2.0.87)',
-	source.includes('anchor: "[data-dsh-stats]"')
-	&& source.includes('[data-dsh-stats]{transform:scale(1.06)')
-	&& source.includes('html[data-dshome-leaning] [data-dsh-stats]{transform:scale(1.12)}')
-	&& source.includes("const LEAN_ATTR = 'data-dshome-leaning';")
+	source.includes("const LEAN_ATTR = 'data-dshome-leaning';")
 	&& source.includes('document.documentElement.setAttribute(LEAN_ATTR,')
 	&& source.includes('document.documentElement.removeAttribute(LEAN_ATTR)'));
+// The docked bottom bar (2.0.88, borrowed from dsh-theme-mineradio's fused state): once a
+// stats line exists, the whole input bar is ONE glass slab -- blur on the wrapper's
+// ::before, card and stats transparent inside, one hairline at the seam -- and the text
+// keeps the lens touch, scaled from its left edge so it cannot spill past the slab.
+check('the composer and its bottom bar fuse into one slab (2.0.88)',
+	source.includes('anchor: "[data-dsh-stats]"')
+	&& source.includes('[data-dsh-inputbar]:has([data-dsh-stats]){position:relative;z-index:8;')
+	&& source.includes('[data-dsh-inputbar]:has([data-dsh-stats])::before{content:"";position:absolute;inset:0;')
+	&& source.includes('[data-dsh-inputbar]:has([data-dsh-stats]) [data-composer-card]{border:none!important;')
+	&& source.includes('border-top:1px solid rgba(0,0,0,.06)')
+	&& source.includes('transform-origin:left center')
+	&& source.includes('html[data-dshome-leaning] [data-dsh-inputbar]:has([data-dsh-stats]) [data-dsh-stats]{transform:scale(1.08)}'));
 
 // 2.0.80 -- the last geometry change this theme made to the send/stop button
 // itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is

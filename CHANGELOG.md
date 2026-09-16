@@ -12,6 +12,30 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.88 — 2026-09-16
+
+### 抄 dsh-theme-mineradio 的「底边栏」：对话框与统计行合成一块玻璃板
+
+用户："我觉得 dsh-theme-mineradio 的底边栏也可以抄一下"。它那套叫 **fused 状态**：一旦统计行挂上，**整个输入栏**变成一块玻璃板——边框/圆角/填充/阴影只画在外层容器上、背板模糊挂在它的 `::before`，里层的卡片与统计行全部转透明，只在接缝处留一条发丝线；作者在源码里记的两条经验也一起抄了：
+
+- **用 `z-index` 而不是 `isolation`**：`isolation` 会同时成为 backdrop root，把弹层的磨砂限制在这条栏内；
+- **里层 `backdrop-filter: none`**：否则里层自己的模糊会和玻璃板的模糊叠加成两层。
+
+触发用 `[data-dsh-inputbar]:has([data-dsh-stats])`——产品没有渲染统计行时整块规则不生效，卡片保留自己的玻璃（这是能安全"抄"的前提）。深浅两套配色都给了；接缝用 `border-top` 一条 hairline。
+
+同时把 2.0.87 的透镜放大收进这条栏里：文字从**左边缘**缩放（`transform-origin:left center`，1.04 常态 / 1.08 倾斜时），这样它不会溢出玻璃板的右缘——整条栏放大 12% 会明显穿出圆角，所以数值也收敛了。
+
+> 说明：这是**技法重述**而不是代码搬运——声明是按本插件自己的 `--dshome-*` 令牌写的，未复制 mineradio 的 `--dsh-aqua-*`；已按 MIT 记入 `THIRD-PARTY-NOTICES.md`。
+
+### 验证
+- `parse-smoke` **13/13（全部干净 UTF-8）**、`bg-recipes-smoke` **82/82**（新增：融合栏的六条结构断言）、`dstt-schema-smoke` **29/29**、`bridge-smoke` **26/26**。
+- **真机复核未做**（审批策略 never）。装上后 `window.__dshomeBuild` 应为 `2.0.88 fused-bar`；统计行应在卡片**内部**、与卡片同宽，且面板与它共用一层模糊。
+
+### 退路
+`@2.0.87`、`@2.0.86`。
+
+---
+
 ## v2.0.87 — 2026-09-16
 
 ### 三条：背景模糊为什么一直没生效、白磨砂的浅色横带、以及你要的"透镜放大"

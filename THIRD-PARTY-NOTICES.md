@@ -6,9 +6,7 @@ must be preserved in every redistribution.
 
 ---
 
-## dsh-theme-mineradio — code included
-
-`lib/client.js` contains a port of the fluid-shader subsystem and the glass
+## dsh-theme-mineradio — code included`lib/client.js` contains a port of the fluid-shader subsystem and the glass
 dispersion / specular-parallax subsystem of **dsh-theme-mineradio v2.3.8**:
 
 - the three GLSL programs (`VERTEX_SHADER`, `FLOW_SHADER`, `DISPLAY_SHADER`) and
@@ -19,6 +17,16 @@ dispersion / specular-parallax subsystem of **dsh-theme-mineradio v2.3.8**:
   (`startGlassDispersion`, `buildDisplacementMapDataUrl`, `tintMatrix`,
   `supportsSvgBackdropFilter`),
 - the specular cursor parallax (`startSpecularParallax`).
+
+One further technique is **re-expressed, not copied** (v2.0.88): the docked bottom bar,
+in which the composer and its stats line become a single glass slab with the backdrop
+blur on the wrapper's `::before`, the inner surfaces transparent, and one hairline at
+the seam. That structure comes from mineradio's "fused" state
+(`[data-dsh-inputbar]:has([data-dsh-stats])`), including two of its recorded lessons:
+`z-index` rather than `isolation` on the wrapper (isolation is also a backdrop root and
+would clip popup frost to the bar) and `backdrop-filter: none` on the inner surfaces so
+their blur cannot double up with the slab's. The declarations here are written against
+this plugin's own tokens (`--dshome-*`), not mineradio's `--dsh-aqua-*`.
 
 Only naming and external dependencies were adapted: plugin-scoped identifiers
 were renamed to this plugin's `dshome-` prefix, and the upstream settings/theme
