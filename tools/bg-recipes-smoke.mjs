@@ -114,11 +114,13 @@ for (const [name, needle] of Object.entries(css)) {
 	check(`custom-background sheet has the ${name} rule`, source.includes(needle));
 }
 check('③ stands our own themed backgrounds down by SELECTOR, not by !important',
-	source.includes('body:not([data-dshome-bg=custom]){background:radial-gradient(')
-	// Anchored on the brace: the CSS comment that explains this guard quotes the
-	// selector too, and an unanchored count sees five instead of four.
-	&& (source.match(/:not\(\[data-dshome-bg=custom\]\)\{/g) ?? []).length === 4,
-	'selector guards: ' + (source.match(/:not\(\[data-dshome-bg=custom\]\)\{/g) ?? []).length);
+	// 2.0.87 moved the wash from the body to a fixed pseudo-element (so that
+	// backdrop-filter can sample it): the guard is still a selector, four themed
+	// rules still carry it, and the body itself now paints nothing for these recipes.
+	source.includes('body:not([data-dshome-bg=custom])::before{content:"";position:fixed;')
+	&& source.includes('body:not([data-dshome-bg=custom]){background:none!important}')
+	&& (source.match(/:not\(\[data-dshome-bg=custom\]\)::before\{/g) ?? []).length === 4,
+	'::before guards: ' + (source.match(/:not\(\[data-dshome-bg=custom\]\)::before\{/g) ?? []).length);
 check('③ has a flat base and a paint-nothing base (2.0.76)',
 	source.includes('body[data-dshome-bg=custom][data-dshome-bgbase=flat]{background-color:#ffffff}')
 	&& source.includes('body[data-dshome-dark][data-dshome-bg=custom][data-dshome-bgbase=flat]{background-color:#000000}')
@@ -402,6 +404,38 @@ check('the display shader uses a sin-free hash (2.0.86)',
 	// are allowed to name it.
 	&& !/float random\(vec2 st\) \{ return fract\(sin\(dot/.test(source)
 	&& !source.includes('* 43758.5453123);'));
+
+// 2.0.87 -- "没有背景模糊效果": two of this theme's own declarations were the suspects,
+// and both are gone now. A body background with `background-attachment: fixed` is painted
+// in its own phase and is NOT part of what Chromium samples for `backdrop-filter`, so
+// every pane over the page wash was blurring nothing; the wash lives on a fixed
+// pseudo-element instead. And `will-change: transform` on the pane promoted it, which is
+// the other known way to lose the backdrop (the compositor promotes a transformed element
+// on its own anyway, so the hint cost the effect it was meant to smooth).
+check('the page wash is a paintable layer, not a fixed-attachment background (2.0.87)',
+	// The THEMED rules lost the fixed attachment; the ③ custom rule keeps it on
+	// purpose (the user's own picture is meant to be viewport-fixed).
+	!source.includes('#f5f6fa 100%);background-attachment:fixed')
+	&& !source.includes('#081b14 100%);background-attachment:fixed')
+	&& source.includes('body:not([data-dshome-bg=custom])::before{content:"";position:fixed;inset:0;z-index:-2;')
+	&& source.includes('body:not([data-dshome-bg=custom]){background:none!important}')
+	&& !source.includes('will-change:transform')
+	&& source.includes('window.__dshomeGlassProbe = () =>'));
+// The lens touch the user asked for ("对对话窗下方文字进行放大（模拟液体放大）"): the stats
+// line under the composer is scaled a little, and further while the pane leans.
+// 2.0.87 also ungates the workspace-list fade: the user sent a screenshot of the light
+// band above 设置 under 白磨砂 ("白磨砂，有这个渐变") -- the frosted pane is translucent
+// too, so the product's opaque end stop mismatches there exactly as it did under liquid.
+check('the workspace-list fade is dropped in both recipes (2.0.87)',
+	source.includes('body .hHd-Xa_root [class*="_fade" i]{')
+	&& !source.includes('html[data-dshome-glass="liquid"] body .hHd-Xa_root [class*="_fade" i]{'));
+check('the line under the composer carries the lens touch (2.0.87)',
+	source.includes('anchor: "[data-dsh-stats]"')
+	&& source.includes('[data-dsh-stats]{transform:scale(1.06)')
+	&& source.includes('html[data-dshome-leaning] [data-dsh-stats]{transform:scale(1.12)}')
+	&& source.includes("const LEAN_ATTR = 'data-dshome-leaning';")
+	&& source.includes('document.documentElement.setAttribute(LEAN_ATTR,')
+	&& source.includes('document.documentElement.removeAttribute(LEAN_ATTR)'));
 
 // 2.0.80 -- the last geometry change this theme made to the send/stop button
 // itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is

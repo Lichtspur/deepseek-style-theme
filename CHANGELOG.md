@@ -12,6 +12,36 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.87 — 2026-09-16
+
+### 三条：背景模糊为什么一直没生效、白磨砂的浅色横带、以及你要的"透镜放大"
+
+#### 1. 「没有背景模糊效果」：我们自己有两处写法会挡掉 `backdrop-filter` 的采样
+
+Chromium 的 `backdrop-filter` 只对**能进入 backdrop 的常规绘制内容**生效，而本主题里有两处正好把它排除掉：
+
+- `body{...;background-attachment:fixed}`：fixed 背景在**独立的绘制阶段**上色，不参与 backdrop 采样 → 页面底色的那片渐变**模糊不到**，于是玻璃只剩半透明（用户原话"现在的效果是半透明，没有背景模糊效果"）。改法：把底色挪到 **`body::before{position:fixed;inset:0;z-index:-2}`**——同样"钉在视口"的观感，但它是普通绘制内容，会被采样；`body` 自身对主题配方改为 `background:none!important`。③ 自选背景仍保留 `background-attachment:fixed`（那是用户自己的图，语义不同）。
+- `[data-composer-card]{will-change:transform}`：这个性能提示会把面板提升为独立图层，而这是另一种已知的"丢失 backdrop"路径；而且合成器在真正 transform 时本来就会提升它，提示白付了代价。
+
+新增 **`__dshomeGlassProbe()`**：一次给出四个面的计算 `backdropFilter`、body 的 `backgroundAttachment`、`::before` 层的 position、卡片的 `willChange` 与 `backdropBlur` 设置——"为什么没模糊"不再需要猜。（真机复核仍被沙箱挡住，所以这条要靠这一行确认。）
+
+#### 2. 白磨砂配方下工作区列表底部的浅色横带（用户截图）
+
+产品给工作区列表底部加了一层渐隐，终点是**不透明的 sidebar 底色**；玻璃面板半透明后终点与实际背景不匹配，就在「设置」上方留出一条浅带。2.0.76 只在**液态**配方里关掉了它，用户这次用截图确认**白磨砂也一样**（"白磨砂，有这个渐变"）——白磨砂面板同样是半透明的。现在两套配方都关（`body .hHd-Xa_root [class*="_fade" i]{background-image:none!important}`）。
+
+#### 3. 透镜放大（用户要求：「对对话窗下方文字进行放大（模拟液体放大）」）
+
+真正的透镜会放大玻璃**后面**的内容，而 `backdrop-filter` 做不到放大（只有 blur/saturate/brightness 这类）。可行的近似是：把**紧贴面板下方**的那行状态文字（`[data-dsh-stats]`，产品标记，从未改名）放大一点——**常态 `scale(1.06)`，面板倾斜时 `scale(1.12)`**（倾斜状态由 `html[data-dshome-leaning]` 标记，由倾斜模块写入），过渡 240ms、`prefers-reduced-motion` 下不动。数值是保守起点，要更强/更弱改两个数字即可。
+
+### 验证
+- `parse-smoke` **13/13（全部干净 UTF-8）**、`bg-recipes-smoke` **81/81**（新增：页面底色是可绘制层而非 fixed 背景、白色横带两配方都关、透镜放大与 `data-dshome-leaning` 标记）、`dstt-schema-smoke` **29/29**、`bridge-smoke` **26/26**。
+- 本轮又一次踩到"CSS 注释里写反引号提前结束模板字符串"（第 4 次），被 `parse-smoke` 与仓库既有的"stray backtick"断言当场拦下——这两道门这轮已经拦了四处问题（乱码、CRLF、反引号 ×2）。
+
+### 退路
+`@2.0.86`、`@2.0.85`。
+
+---
+
 ## v2.0.86 — 2026-09-16
 
 ### 三条：流体「大方块」的根因、玻璃变「凝胶／没模糊」、倾斜太弱
