@@ -153,7 +153,10 @@ check('darkSync is declared exactly once', (source.match(/\blet darkSync\b/g) ??
 // url("...") before anything probes or stamps it.
 check('bare URLs are normalised into a url() token before use',
 	source.includes('function normalizeBackgroundValue')
-	&& /function backgroundKind\(value\) \{\n\t\t\tconst text = normalizeBackgroundValue\(value\);/.test(source)
+	// `\r?\n`: the blob is LF, but a checkout with core.autocrlf=true writes CRLF,
+	// and this assertion has to hold in both trees (it failed on exactly that
+	// difference the first time a checkout rewrote the working copy).
+	&& /function backgroundKind\(value\) \{\r?\n\t\t\tconst text = normalizeBackgroundValue\(value\);/.test(source)
 	&& source.includes("'url(\"' + text.replace(/[\\\\\"]/g"));
 
 // Twice now a comment in this CSS block has been written with a backtick in it,
@@ -270,10 +273,29 @@ check('the clip covers the composer and view area too, not just the list (2.0.82
 // pointer leaves the card's own box, plus a cooldown before the next engagement.
 // The loop needed that release to feed it; a lean held still under a stationary
 // pointer cannot feed anything.
-check('the composer tilt keeps its lift and engages over the input (2.0.82)',
-	source.includes('const TILT_SCALE = 1.01;')
+check('the composer tilt keeps its lift and engages over the input (2.0.82, lift raised 2.0.86)',
+	source.includes('const TILT_SCALE = 1.015;')
+	&& source.includes('const TILT_MAX = 0.03;')
 	&& source.includes('const TILT_CONTROLS = \'button,[role="button"],a[href],[class*="andle" i]\';')
 	&& !/TILT_CONTROLS = '[^']*(input|textarea|contenteditable)/.test(source));
+// 2.0.86: engagement is geometric, so the lean's own movement could hand the card
+// back and forth under a stationary pointer (out -> release -> in -> engage, at frame
+// rate). The release pad is the hysteresis that closes that path, and it is what lets
+// the lean be 1.7x stronger than upstream's conservative default.
+check('the geometric tilt has a release pad (2.0.86)',
+	source.includes('const TILT_RELEASE_PAD = 8;')
+	&& (source.match(/TILT_RELEASE_PAD/g) ?? []).length >= 3);
+// 2.0.86: the SVG refraction chain is opt-in and must be absent from the DOM when the
+// setting is `off`. Two measured failures came from mounting it: the tint washed the
+// whole pane over a gradient background ("玻璃怎么变成凝胶了"), and a `url()` that
+// fails to render invalidates the whole `backdrop-filter` declaration, so the pane
+// lost its BLUR ("没有背景模糊效果"). A decorative filter must never be able to cost
+// a surface its glass.
+check('the refraction chain only mounts when the setting asks for it (2.0.86)',
+	source.includes("const dispersion = dsttGetComposer() === 'off'")
+	&& source.includes('? { setTint() {}, setRefraction() {}, dispose() {} }')
+	&& source.includes('window.__dshomeDispersion = () =>')
+	&& source.includes('var TINT_OPACITY = 0.16;'));
 // The recipe gate is gone on purpose: the tilt used to return early unless the
 // glass was `liquid`, which made the effect invisible on the white frosted recipe
 // ("白磨砂玻璃也要有"). Because the liquid sheet was the only place carrying
@@ -292,8 +314,9 @@ check('entering a control freezes the composer tilt instead of releasing it (2.0
 	&& source.includes('if (current !== spot || frozen) return;')
 	&& (source.match(/frozen = true;/g) ?? []).length >= 2
 	// The release survives in exactly one place: the pointer leaving the card's
-	// own box. That rect guard is what keeps the effect off the hover loop.
-	&& source.includes('if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) return;')
+	// own box (plus the release pad). That rect guard is what keeps the effect off
+	// the hover loop.
+	&& source.includes('if (event.clientX >= rect.left - TILT_RELEASE_PAD && event.clientX <= rect.right + TILT_RELEASE_PAD')
 	&& source.includes('window.__dshomeTilt = ()'));
 // 2.0.85 -- engagement is geometric. It used to require a `pointerover` whose
 // target sat inside the card, which is a chain of assumptions about product markup
@@ -362,6 +385,23 @@ check('the cursor-following glass extras mount outside the fluid layer (2.0.85)'
 	&& !/startSpecularSpotter|startSpecularParallax|startGlassDispersion/.test(ambientBody)
 	&& source.includes('function startGlassExtras()')
 	&& source.includes('return startGlassExtras();'));
+
+// 2.0.86 -- the fluid's 大方块 root cause (the 2026-09-16 fluid report, measured on an
+// Intel Arc 130V): DISPLAY_SHADER's classic sin hash is evaluated at ~1e5, where
+// float32 argument reduction leaves ~2.5e-3 of error that the 43758x multiplier turns
+// into ~100 units -- the hash stops hashing, neighbouring cells collapse onto the same
+// value, and the warp field becomes flat plateaus with hard edges (39.6% of 8x8 blocks
+// flat, largest plateau 800x1000px, 60-90/255 jumps). The sin-free hash keeps every
+// intermediate small. Pinned here because the deviation is easy to "restore" by
+// accident while porting upstream again.
+check('the display shader uses a sin-free hash (2.0.86)',
+	source.includes('float random(vec2 st) {')
+	&& source.includes('vec3 p3 = fract(vec3(st.xyx) * 0.1031);')
+	&& source.includes('p3 += dot(p3, p3.yzx + 33.33);')
+	// The old form must be gone from the SHADER; the two comments that explain it
+	// are allowed to name it.
+	&& !/float random\(vec2 st\) \{ return fract\(sin\(dot/.test(source)
+	&& !source.includes('* 43758.5453123);'));
 
 // 2.0.80 -- the last geometry change this theme made to the send/stop button
 // itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is

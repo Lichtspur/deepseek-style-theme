@@ -14,7 +14,7 @@
 // Usage: node tools/parse-smoke.mjs      (exit 1 with the offending file listed)
 
 import { spawnSync } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -35,6 +35,26 @@ const collect = (dir) => {
 };
 
 const files = roots.flatMap(collect).sort();
+// Encoding gate, in the same spirit as the parse gate: on 2026-09-16 a PowerShell
+// `Get-Content | Set-Content` round trip on lib/client.js decoded the file as a
+// legacy codepage and re-encoded it as UTF-8, turning 211 sequences -- every Chinese
+// comment -- into U+FFFD mojibake. `node --check` still passed (the mangling sat
+// inside comments and string literals), and the damage only surfaced when a reader
+// refused the file. So: every shipped and tool file must decode as strict UTF-8 and
+// carry no replacement characters.
+const encodingFailures = [];
+for (const file of [...files, join(root, 'README.md'), join(root, 'CHANGELOG.md'), join(root, 'package.json')]) {
+	let text = '';
+	try {
+		text = readFileSync(file, 'utf8');
+	} catch (error) {
+		encodingFailures.push(relative(root, file) + ' (not valid UTF-8)');
+		continue;
+	}
+	// A round-decoded file re-encodes the replacement character itself.
+	if (text.includes('\uFFFD')) encodingFailures.push(relative(root, file) + ' (contains U+FFFD)');
+}
+
 const failures = [];
 for (const file of files) {
 	// `--check` on a .js file parses it as CommonJS, which is what lib/client.js is
@@ -54,8 +74,12 @@ for (const file of files) {
 }
 
 console.log('');
-if (failures.length === 0) {
-	console.log(`PARSE OK (${files.length} files)`);
+if (encodingFailures.length !== 0) {
+	for (const failure of encodingFailures) console.log('FAIL ' + failure);
+	console.log(`PARSE FAILED (${encodingFailures.length} file(s) are not clean UTF-8)`);
+	process.exitCode = 1;
+} else if (failures.length === 0) {
+	console.log(`PARSE OK (${files.length} files, all clean UTF-8)`);
 } else {
 	for (const failure of failures) console.log('FAIL ' + failure.file + '  [' + failure.message + ']');
 	console.log(`PARSE FAILED (${failures.length}/${files.length})`);

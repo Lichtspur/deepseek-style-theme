@@ -23,16 +23,36 @@ dispersion / specular-parallax subsystem of **dsh-theme-mineradio v2.3.8**:
 Only naming and external dependencies were adapted: plugin-scoped identifiers
 were renamed to this plugin's `dshome-` prefix, and the upstream settings/theme
 store and React layer were replaced by function parameters. **The GLSL shader
-sources are copies of upstream, with one recorded deviation (v2.0.74): the
-`precision mediump float;` qualifier in FLOW_SHADER and DISPLAY_SHADER was
-changed to `precision highp float;`.** The reason is a rendering defect, not a
-feature: under ANGLE/D3D11 on Intel integrated GPUs `mediump` is a real 16-bit
-float (`min16float`), and the display shader's noise --
-`fract(sin(dot(st, vec2(12.9898,78.233))) * 43758.5453123)` -- needs roughly 24
-bits of mantissa, so at 16 bits the hash collapses into constant plateaus and the
-noise lattice shows up as large drifting squares. WebGL2 guarantees highp in
-fragment shaders, and on GPUs that promoted mediump to 32 bits the change is a
-no-op. Every other line of every shader is unchanged.
+sources are copies of upstream, with two recorded deviations:**
+
+1. **(v2.0.74)** the `precision mediump float;` qualifier in FLOW_SHADER and
+   DISPLAY_SHADER was changed to `precision highp float;`. The reason is a
+   rendering defect, not a feature: under ANGLE/D3D11 on Intel integrated GPUs
+   `mediump` is a real 16-bit float (`min16float`), and the display shader's noise
+   needs roughly 24 bits of mantissa, so at 16 bits the hash collapses into
+   constant plateaus and the noise lattice shows up as large drifting squares.
+   WebGL2 guarantees highp in fragment shaders, and on GPUs that promoted mediump
+   to 32 bits the change is a no-op.
+2. **(v2.0.86)** DISPLAY_SHADER's `random(vec2 st)` -- upstream's classic
+   `fract(sin(dot(st, vec2(12.9898,78.233))) * 43758.5453123)` -- was replaced by
+   Dave Hoskins' sin-free hash (`fract(vec3(p.xyx) * 0.1031)` plus one dot and one
+   multiply). The reason is the same class of defect, one layer down and this time
+   precision-independent: this shader scales the noise coordinate to ~1e5
+   (`uv *= ns * u_resolution`, doubled again for `n2`), and at that magnitude the
+   error left by `sin()`'s argument reduction in float32 is multiplied by 43758
+   into ~100 units, so neighbouring cells receive nearly the same value and the
+   warp field degenerates into flat plateaus with hard edges (measured on an Intel
+   Arc 130V: 39.6% flat 8x8 blocks, an 800x1000px plateau, 60-90/255 jumps along
+   its boundary -- the user's 大方块). The sin-free hash keeps every intermediate
+   small, so it behaves identically on every GPU, and it preserves upstream's
+   per-cell white noise rather than shrinking the domain warp (which would cure the
+   symptom by removing the effect). `noise()`'s interpolation and every other line
+   of every shader are unchanged.
+
+The two deviations are related on purpose: deviation 1 fixed a 16-bit intermediate
+precision collapse, deviation 2 the 32-bit argument-magnitude collapse that
+survived it. Both were diagnosed from the same symptom on the same machine class,
+and both were verified there rather than assumed.
 
 Upstream notes that its fluid shader is itself a faithful port of the
 `ds-join-shader-bg` shader in the deepseek.com site bundle, with the shader
