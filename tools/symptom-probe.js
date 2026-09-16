@@ -30,11 +30,16 @@
 
 (() => {
 	'use strict';
+	// The plugin's guarded anchors, verbatim, plus the suffix forms it uses for the
+	// surfaces the product has renamed at least once (`_headline`, `_moreButton`,
+	// user bubbles). A `false` here is the first thing to look at when a surface
+	// looks unthemed: its CSS is gated on the anchor matching.
 	const ANCHORS = [
 		'.pI_x6G_frame', '.hHd-Xa_root', '.YDXeBa_sessionRow', '.wSkVaW_root',
-		'.nL4_yW_sessionLogButton', '.uV2eYG_card', '.wSkVaW_scrollBody',
-		'.pXSMma_headlineText', '.gdEzaW_bubble', '.fV0t5q_root', '._1p9O6q_root',
-		'.Nqubda_panel', '.VOzbGW_panel'
+		'[class*="_moreButton"]', '.uV2eYG_card', '.wSkVaW_scrollBody',
+		'[class*="_headline"]',
+		':is([data-chat-flow-kind="user"],[data-chat-flow-kind="steering"]) [class*="bubble" i]:not([class*="_bubble_"])',
+		'.fV0t5q_root', '._1p9O6q_root', '.Nqubda_panel', '.VOzbGW_panel'
 	];
 	const q = (selector) => document.querySelector(selector);
 	const round = (value) => Math.round(value * 100) / 100;

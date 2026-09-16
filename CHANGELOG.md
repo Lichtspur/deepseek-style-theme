@@ -12,6 +12,54 @@ dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
 
 ---
 
+## v2.0.84 — 2026-09-16
+
+### 修 BUG-REPORT-dstt-2.0.82 的四条 + 2.0.83 的激活期崩溃
+
+报告在 `D:\DeepSeek\Cache\dstt-bughunt-2026-09-16\BUG-REPORT-dstt-2.0.82.md`（Playwright 驱动真机 + 页面内探针，四条都带复现与代码定位）。**B5 就是用户报了四轮的「按钮跳动」**——不是我们一直追的纵向 8px，而是**横向 48–78px 瞬移**。
+
+#### 先修 2.0.83 带进来的崩溃（并行会话的提交）
+
+`54fa442`（tag `v2.0.83`，已推上游）把 `USER_BUBBLE` 的声明留在 `PATCH_BLOCKS` / `GLASS_CSS` **之后**，而这两个表在构建时就用 `${USER_BUBBLE}` 插值 → 工厂一跑就 `ReferenceError: Cannot access 'USER_BUBBLE' before initialization`，**整个主题不加载**（`style[data-plugin-css]` 一个都没有）。本版把声明提到两个表之前，并加了回归断言：`bg-recipes-smoke` 的"模板插值不得早于 const 声明"（已用真 bug 反向验证：把声明挪回去 → 该条 FAIL 且指名 `USER_BUBBLE`）。那条提交自带的 `DSTT_BACKGROUND_DEFAULT: classic → bold` 保留不动。
+
+#### B1【严重】`ATTR` 从未声明 → 折射一直在死，每次切「动态背景」泄漏一个流体模拟器
+
+`var ATTR = "data-dshome-dispersion";` 在 `d862487` 被误删，从 **v1.43.6 到 2.0.82** 无人发现：`startGlassDispersion()` 第一行就抛 `ReferenceError`，而 `startAmbient()` 在 canvas 与 rAF 都起来**之后**才走到这里，异常被 `catch (error) { dispose = () => {}; }` **静默吞掉** → 折射从未挂载（四表面 `backdrop-filter` 里没有 `url(#…)`），且**返回的 disposer 永远不存在**：开关写着"已关闭"，全屏流体仍 60 次/秒绘制，点一次多一个模拟器（实测 1→2→3，draw 调用 60→120→180）。
+
+修法：① 补回声明（放在 FILTER_ID 一族旁）；② 流场与粒子的帧循环**自带自清理**——canvas 一离开 DOM 就停，任何"抛在半路"的挂载都不会变成后台常驻模拟器；③ 调用处 catch **不再静默**（`console.error` + 扫掉孤儿 canvas）；④ 新增 8 条"CSS 契约名必须已声明"断言（`ATTR/SPOT_ATTR/SPEC_X/SPEC_Y/FILTER_ID/TALL_FILTER_ID/COMPOSER_FILTER_ID/WIDE_FILTER_ID`）——`node --check` 看不见未声明标识符，这正是它藏了 19 个版本的原因。
+
+#### B5【严重】提示气泡被改成 `position:relative` → 光标下的控件被顶走 → 自激
+
+`LIQUID_BUBBLE` 是**逗号列表**却当**前缀**用：`html[data-dshome-glass="liquid"] ${LIQUID_BUBBLE}{…}`。CSS 前缀只约束紧邻的那一个分支，**逗号后的分支完全在闸门外**；那个分支 `[class*="bubble" i]:not([data-chat-flow-kind="assistant-step"] *)` 命中了产品的**提示气泡**（`._bubble_1nw3t_1`，`position:fixed`）→ 被主题的 `position:relative` 覆盖 → 浮层变流内元素，在对话框尾部行凭空占 **78px**、在消息操作栏占 **48px** → 光标下的发送/复制按钮被顶走 → hover 失效 → 提示卸载 → 按钮弹回 → 再 hover……实测发送键 `left 954.6 ↔ 876.6`（~2Hz），复制键 **2.5s 内 151 次翻转（≈60Hz）**。这也解释了"为什么必须先打字"：提示只在可发送/hover 出动作条时存在。
+
+修法：① 改为**单个复合选择器** `USER_BUBBLE`（只在 `[data-chat-flow-kind="user"|"steering"]` 容器内），每处用法包 `:is(…)`，**未来再加分支也逃不出闸门**；② 按**形状**排除提示气泡（消息气泡 `<hash>_bubble`，提示气泡前导下划线 `_bubble_…`）＋ `:not([role="tooltip"])` 双保险；③ 两条本该在闸门内的暗色规则补上 `html[data-dshome-glass="liquid"]`（此前在白磨砂下也生效）；④ 被删掉的"刚输入的消息"分支**有意不补**：它在回合被消费前的一瞬不涂玻璃，是审美等待；会瞬移的按钮不是。
+
+#### B2【中】三个产品 hash 类名已改名 → 三个补丁块永久跳过
+
+`pXSMma_headlineText` → `pXSMma_headline`、`nL4_yW_sessionLogButton` → `nL4_yW_moreButton`、`gdEzaW_bubble` → `Sixlwa_bubble`/`oRe1gG_bubble`：三处改为**按后缀匹配**（`[class*="_headline"]`、`[class*="_moreButton"]`、`USER_BUBBLE`），与仓库已有的 `[class*="_fade" i]` 同一套路；用户气泡的玻璃块锚点换成 `.wSkVaW_scrollBody` —— 白磨砂下的用户气泡因此重新拿到 `rgba(255,255,255,.6)` + `blur(16px)`（此前实测 `background: rgba(0,0,0,0)` + `backdrop-filter: none`）。
+
+#### B3【中】锚点守卫是"一次性 30 秒窗口" → 晚打开的界面永远拿不到补丁
+
+原来 30 秒内锚点不出现就 `disconnect()` 且不再重试：实测加载后 ~4s 展开侧栏 → 补丁注入；>30s 才展开（默认就是折叠）→ **永不注入**，设置面板/进度面板/轨迹视图全在这个集合里。修法：观察者活到插件结束，代价有界（重查按 rAF 节流、落空不排下一次、块落地即 `disconnect`），15s 时打一行 `patch waiting: …` 带上全部候选锚点。
+
+#### B4【低】README 勘误
+
+「对话 / 轨迹」标签并非常驻：会话视图下默认 `display:none`，只有标题栏悬停（`.dshome-swap`）或轨迹视图存在时才显示。
+
+### 验证
+- **`tools/parse-smoke.mjs`（新增）13/13**：`lib/` 与 `tools/` 每个文件过 `node --check`。它抓到的第一个真问题就是本次自己造的——`tools/gui-probe.mjs` 一句注释在模板字符串里写了反引号（Node 的报错还不带文件名）。
+- **`tools/bg-recipes-smoke.mjs` 73/73**（新增 9 条：8 条 CSS 契约名已声明 + 1 条插值顺序）。插值顺序那条**已用真 bug 反向验证**：`.tmp-inspect/proof-tdz.mjs` 把声明挪回原位生成 `client-tdz.js` → 该条 FAIL 且指名 `USER_BUBBLE`；修好的树 73/73。
+- `tools/dstt-schema-smoke.mjs` **29/29**；`tools/bridge-smoke.mjs` **26/26**。
+- **真机复核未完成**：收敛后被沙箱策略挡住（审批改为 never → 起不了 headless Chrome、不能把工作副本热替换进 profile）。装包后请确认三件事：`document.documentElement.hasAttribute('data-dshome-dispersion')` 应为 `true`、`document.querySelectorAll('svg filter').length` 应为 `4`、`getComputedStyle(document.querySelector('._bubble_1nw3t_1')).position` 应为 `fixed`（第三件事就是"按钮跳动"是否根治的判据：打字后把鼠标停在发送键上，按钮不应再横向瞬移）。
+
+### 退路
+`@2.0.82`（悬停放大/倾斜 + 白磨砂）、`@2.0.81`。
+
+### 附：版本链备注
+`v2.0.83`（`54fa442`，另一会话）只做了一件事——默认背景方式 `classic → bold`，并顺手把当时**未提交**的现场修复合进了同一个提交（即本版的前半部分）。它同时带进了上面那条激活期崩溃，**不要发布 2.0.83 的产物**：本版才是可用的那一版。
+
+---
+
 ## v2.0.82 — 2026-09-15
 
 ### 修复：2.0.79 把「对话框悬停的放大 + 倾斜」修没了（本次恢复），并把横向滚动条那条修法扩到整个会话列

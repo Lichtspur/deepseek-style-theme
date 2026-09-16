@@ -297,13 +297,51 @@ check('entering a control freezes the composer tilt instead of releasing it (2.0
 	&& source.includes('if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) return;')
 	&& source.includes('window.__dshomeTilt = ()'));
 
+// ── 2.0.83: the two load-time hazards `node --check` cannot see ───────────────
+// B1 of the 2026-09-16 report: `var ATTR = "data-dshome-dispersion";` was deleted
+// by accident in d862487, and the file kept shipping for nineteen versions with an
+// undeclared ATTR. Reading an undeclared identifier is not a syntax error, and the
+// throw it caused was swallowed by the ambient mount -- so the refraction never
+// mounted anywhere AND the 动态背景 toggle lost its disposer. Every name the ported
+// header block advertises as one the shipped CSS must match is pinned here.
+for (const name of ['ATTR', 'SPOT_ATTR', 'SPEC_X', 'SPEC_Y', 'FILTER_ID', 'TALL_FILTER_ID', 'COMPOSER_FILTER_ID', 'WIDE_FILTER_ID']) {
+	check(`the CSS contract name ${name} is declared (2.0.83)`,
+		new RegExp('^\\s*(?:var|const|let)\\s+' + name + '\\s*=', 'm').test(source));
+}
+// The other half of the same class: interpolating a `const` that is declared
+// further down. `${USER_BUBBLE}` inside PATCH_BLOCKS threw "Cannot access
+// 'USER_BUBBLE' before initialization" the moment the factory ran, and because
+// that happens before any style tag is injected, the WHOLE theme vanished from the
+// page rather than one block. `${…}` is the sharp edge specifically: unlike a
+// reference inside a function body (evaluated only when called, so a later
+// declaration is fine), an interpolation is evaluated while the table around it is
+// being built and cannot wait.
+const declaredAt = new Map();
+for (const match of source.matchAll(/^\s*(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=/gm)) {
+	if (!declaredAt.has(match[1])) declaredAt.set(match[1], match.index);
+}
+const earlyInterpolations = [];
+for (const match of source.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)\s*\}/g)) {
+	const at = declaredAt.get(match[1]);
+	if (at === undefined || at < match.index) continue;
+	// Prose counts too, and prose is where this check has already fired once: a
+	// comment explaining the guard wrote the literal interpolation and tripped it.
+	// A match after a `//` on its own line, or on a line starting with `*`, is text.
+	const lineStart = source.lastIndexOf('\n', match.index) + 1;
+	const line = source.slice(lineStart, match.index);
+	if (line.includes('//') || /^\s*\*/.test(line)) continue;
+	earlyInterpolations.push(match[1]);
+}
+check('no template interpolation reads a const before its declaration (2.0.83)',
+	earlyInterpolations.length === 0,
+	[...new Set(earlyInterpolations)].slice(0, 4).join(', '));
+
 // 2.0.80 -- the last geometry change this theme made to the send/stop button
 // itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is
 // enough surface motion to hand the hover to a neighbour; the product's own
 // hover on that button changes only its background. The shadow stays, the
 // transform must not come back.
-check('the send button hover changes colour and shadow only (2.0.80)',
-	source.includes('.uV2eYG_primary:hover{box-shadow:0 6px 18px')
+check('the send button hover changes colour and shadow only (2.0.80)',	source.includes('.uV2eYG_primary:hover{box-shadow:0 6px 18px')
 	&& !/\.uV2eYG_primary:hover\{[^}]*transform/.test(source));
 
 // 2.0.81 -- the flow field's storage precision, which is the "drifting squares"

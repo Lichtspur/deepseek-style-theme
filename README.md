@@ -24,7 +24,7 @@
 - **标题栏**：默认透明，悬停变毛玻璃；栏内按钮统一为真圆角（覆盖产品全局 corner-shape:superellipse 造成的方角观感），会话标题小胶囊化
 - **悬停动画**：中/E、「打开方式」、「对话 / 轨迹」标签悬停时上浮 + 品牌色辉光；中/E 短标签「中/E」平滑展开为「中文/EN」（max-width 过渡，非 display 硬切）；「打开方式」展开菜单时箭头翻转，切换标签时选中项弹出
 - **DeepSeek 品牌链接**：点击侧边栏 DeepSeek 标识跳转 `https://www.deepseek.com/`
-- **轨迹视图**：「对话 / 轨迹」标签常驻，可随时切回对话
+- **轨迹视图**：「对话 / 轨迹」标签在标题栏悬停（`.dshome-swap`）或轨迹视图存在时显示，**不是常驻**——会话视图下实测 `[class*="wSkVaW_tabs"]` 默认 `display:none`（2.0.84 按实机报告 B4 勘误）
 - **运行中子代理面板**：有子代理启动时，右下角浮出玻璃面板，实时列出正在运行的子代理——名称、已运行时长、token 用量与流动进度条；点击条目直接跳转到该子代理会话，可折叠收起
 - **跨平台**：打开工作区目录时按系统调用文件管理器（Windows Explorer / macOS Finder / Linux 默认文件管理器）
 - **模型目录同步（1.40.0+）**：每次插件启动向 DeepSeek 端点询问一次模型列表，与 `llm-deepseek` 目录比对后按需对齐——「选择器里有哪些模型」由接口说了算，但**绝不臆造能力位、绝不清空你的条目**，移除项会逐个记日志；可用 `catalogSync: auto | add | off` 控制（详见下文）
@@ -318,7 +318,8 @@ dsh plugin --profile web remove dsh-deepseek-style-theme
 | `symptom-probe-selftest.mjs` | 上面那份探针的自测（19 项）：在一个合成页面上跑（我们自己的 canvas + 带超宽子元素的消息列 + 每 60 ms 改一次 transform 的卡片 + CDP 派发真实鼠标移动），断言环境报告的字段形状、`run()` 的采样与逐字段 diff、五个开关的实际效果（含 `clip` 在 `overflow-y:auto` 旁会计算成 `hidden` 这条 CSS Overflow 3 规则） | `chrome --headless=new --remote-debugging-port=9333 --user-data-dir=%TEMP%\dsh-probe-chrome about:blank`，然后 `node tools/symptom-probe-selftest.mjs` |
 | `bridge-smoke.mjs` | 宿主端私有 RPC 通道：协议、错误路径，以及完整围栏（非回环对端 / 缺 `Host` / DNS rebinding / 跨站来源 / `Origin` 不匹配 / 非 JSON 类型 / UNC 路径 / `file.*` 端点识别与校验，24 项检查；加 `--open` 为 25 项，会真的用系统默认应用打开一个临时文件，**会在桌面弹出窗口**，默认不启用） | `node tools/bridge-smoke.mjs [已安装的 lib/index.js] [--open]` |
 | `dstt-schema-smoke.mjs` | DSTT 设置 schema 与写入路径的一致性：**每个能写进 `settings.yaml` 的值都必须过 `register()` 的校验**（1.43.2 那次 schema 缺 `wide` 的发布阻塞就靠它守）。含背景方式四档的往返、未知 id 拒写、自定义背景的归一化（控制字符→空格、去首尾、长度上限）、动态背景开关的读写与布尔回读，以及「客户端枚举 = 宿主枚举」的跨文件检查（29 项） | `node tools/dstt-schema-smoke.mjs [lib/index.js]` |
-| `bg-recipes-smoke.mjs` | 客户端源码层的数据与契约断言（2.0.73+，随每版增补）：① 必须含纯白 + 近白、② 只有两个颜色参与、`bold` 浅色无 `#FFFFFF`、③ 的基底/让位规则与选择器守卫、壁纸引擎标记与「提示而非自动切换」、桌面壁纸端点与 `WallpaperStyle` 映射、`darkSync` 作用域、两条反引号守卫（整表扫描）、发送按钮 hover 不再位移、流场 16F 探测与回退、**悬停倾斜的抬升 1.01 与 `TILT_CONTROLS` 不含文字录入、进入控件时冻结而非释放、释放只在离开卡片矩形、两套玻璃配方都生效（2.0.82）**、横向裁切覆盖消息列/对话框/转写区（64 项） | `node tools/bg-recipes-smoke.mjs [lib/client.js]` |
+| `bg-recipes-smoke.mjs` | 客户端源码层的数据与契约断言（2.0.73+，随每版增补）：① 必须含纯白 + 近白、② 只有两个颜色参与、`bold` 浅色无 `#FFFFFF`、③ 的基底/让位规则与选择器守卫、壁纸引擎标记与「提示而非自动切换」、桌面壁纸端点与 `WallpaperStyle` 映射、`darkSync` 作用域、两条反引号守卫（整表扫描）、发送按钮 hover 不再位移、流场 16F 探测与回退、悬停倾斜的抬升 1.01 与 `TILT_CONTROLS` 不含文字录入、进入控件时冻结而非释放、释放只在离开卡片矩形、两套玻璃配方都生效（2.0.82）、横向裁切覆盖消息列/对话框/转写区、**8 个 CSS 契约名必须已声明 + 模板插值不得早于 const 声明（2.0.84：`ATTR` 被误删、`USER_BUBBLE` 提前插值都属于这一类，`node --check` 看不见）**（73 项） | `node tools/bg-recipes-smoke.mjs [lib/client.js]` |
+| `parse-smoke.mjs` | **每个文件都必须能解析**（2.0.84+）：`lib/` 与 `tools/` 下每个 `.js/.mjs` 过一遍 `node --check`。看着多余，其实不是——已经有三次"注释里的反引号把模板字符串提前结束"的事故（`lib/client.js` 两次、`tools/gui-probe.mjs` 一次，后者 Node 的报错还不带文件名）。纯解析门，不做 lint | `node tools/parse-smoke.mjs` |
 | `fluid-precision-test.mjs` | **流场存储精度对照实验**（2.0.81+）：把 `lib/client.js` 里的真实 `VERTEX_SHADER` / `FLOW_SHADER` 抠出来，在无头 Chrome 里对同一场景各跑 240 步，分别存 RGBA8 与 RGBA16F，读回统计"取值分布 / 落在 1/255 网格上的层级 / max / mean"，并判定 16F 是否真的摆脱了量化（5 项）。**需要 Chromium 系浏览器**，且 Chrome 在受限进程里起不来，请从普通终端跑 | `node tools/fluid-precision-test.mjs [--chrome <路径>] [--keep]` |
 | `catalog-sync-smoke.mjs` | 模型目录同步的全部分支：一致 / 可描述漂移 / 聚合网关目录 / 只追加 / `off` / baseURL 解析顺序 / 无密钥 / 端点故障 / 命名空间未就绪 / 版本冲突（27 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
 | `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |

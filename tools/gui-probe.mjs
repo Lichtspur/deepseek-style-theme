@@ -305,7 +305,12 @@ const AMBIENT = `(() => {
 			for (let i = 0; i < 4 && node !== null; i += 1) node = node.parentElement;
 			return node === null ? null : String(node.className).slice(0, 70);
 		})(),
-		bubble: glass('.gdEzaW_bubble', null),
+		// The user bubble, by the same selector the plugin glases: the product's
+		// class hash has changed twice (gdEzaW_bubble -> Sixlwa_bubble), and the
+		// tooltip shape must NOT be reported here: see USER_BUBBLE in lib/client.js.
+		// (No backticks in this comment -- it lives inside a template literal, and
+		// a pair of them silently ends the literal. tools/parse-smoke.mjs guards it.)
+		bubble: glass('[data-chat-flow-kind="user"] [class*="bubble" i]:not([class*="_bubble_"])', null),
 		sidebar: glass('.hHd-Xa_root', '::before')
 	};
 })()`;
