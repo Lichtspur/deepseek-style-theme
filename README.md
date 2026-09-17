@@ -179,46 +179,20 @@ card=700/757 … under=div.wSkVaW_widthHandle hovCard=0     ← 倾斜解除、�
 
 **Windows 上不要用 `inject:`**：`inject:D:\...` 会因为盘符里的 `:` 被 pnpm 当成 registry 协议分隔符，去 registry 找一个名叫 `inject:D:\...` 的包并拿到 404。Windows 一律用 `file:`。
 
-### 从本地源码（开发模式）
+## 安装方式
+
+### 从 npm（推荐）
 
 ```bash
-# 源码放哪个稳定目录都行（file: 会把它拷进 profile）
-dsh plugin --profile web add file:D:\plugins\dsh-deepseek-style-theme
-```
-
-> 不要 `cd` 进插件源码再执行 `add .`——`.` 会展开成调用目录的绝对路径，落成 `link:`，于是踩中上面的坑。
-
-### 从 GitHub（本仓库）
-
-```bash
-dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
-```
-
-> 本插件是纯 JS 且 `lib/` 已提交到仓库，Git 安装**无需构建**——不会触发 pnpm 的 `prepare`/`allowBuilds` 授权流程，一次 `add` 即可生效。GitHub 安装的包同样默认落在 profile 第三方插件区（独立目录），不会进入官方 dsh 安装目录。每个版本对应的 `tgz` 归档附在 [GitHub Releases](https://github.com/Lichtspur/deepseek-style-theme/releases) 页面。
-
-> **代理 / 企业网络**：`github:` 安装要靠 pnpm 调 `git clone`，在带 TLS 中间人证书审计的网络里会以证书错误失败——Windows 上是 `schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS (0x8009030e)`，改用 OpenSSL 后端后变成 `unable to get local issuer certificate (20)`。报错信息只看得到 TLS，很容易误判成插件的问题。这类环境请直接用下面的 **tgz** 或本地目录安装。
-
-### 从本地 tgz（推荐用于代理 / 离线环境）
-
-```bash
-dsh plugin --profile web add ./releases/dsh-deepseek-style-theme-1.43.1.tgz
-```
-
-`releases/` 下的归档随每个 Release 发布，既不依赖 git 也不依赖 registry，在受限网络里最省事。
-归档文件名由 `package.json` 的 `name` 与 `version` 决定（`pnpm pack` / `npm pack` 均如此），
-因此 1.44.0 起是 `dsh-deepseek-style-theme-<版本>.tgz`。
-
-### 从 npm
-
-> ⚠️ **暂时不要用这一条。** npm 上的 `latest` 仍是 **1.43.1**，而那一版带着一个致命缺陷：客户端 bundle 的注册 id 还是旧 scope 的 `@dsh-external/dsh-deepseek-style-theme`，而宿主按包名 `dsh-deepseek-style-theme` 要求它自我注册，于是 **bundle 加载成功却什么都没注册**，主题的整个客户端半边失效。1.43.3 已修复。
->
-> 在 1.43.3 发到 npm 之前，请用上面的 **tgz 别名地址** 或 `github:` 安装。
-
-```bash
-# 修复版发到 npm 之后可用；在那之前用 tgz 别名地址
 dsh plugin --profile web add dsh-deepseek-style-theme
 ```
 
+> **这是唯一计入 npm 下载量的安装方式。** 下面几条（`file:` / `github:` / 本地 tgz / 任意 git 源）
+> 都绕开 registry，装多少次都不会让 npm 的统计动一下——邀请别人试用时请发上面这一条。
+> 它同时是最省事的：不走 `git clone`（绕开代理 / 证书问题），也不依赖 GitHub Release 资产
+> （绕开 `releases/latest` 那类 URL 腐烂）。
+
+> **关于包名**
 > 包名是**无 scope** 的 `dsh-deepseek-style-theme`。这是刻意的：`@dsh-external` 这个 scope 在 npm 上属于别人（`wulei1107`，下面挂着 `@dsh-external/dsh-vision-toolkit`），不是本项目的命名空间，也发不进去。
 >
 > **改名的三个引用点必须同时对齐**，缺一个都会静默失效，且失效方式各不相同：
@@ -230,15 +204,43 @@ dsh plugin --profile web add dsh-deepseek-style-theme
 > | `lib/client.js` 里 `__ModuleLoader__.load` 的 `id` | bundle 加载成功却什么都没注册，**客户端半边失效**（1.43.1 的缺陷） |
 >
 > 自查：`grep '@dsh-external' lib/` 应当**一处都不命中**；命中即漏改（有意保留的兼容位置除外）。
->
-> npm 是最省事的安装源：不走 `git clone`（绕开代理/证书问题），也不依赖 GitHub Release 资产（绕开 `releases/latest` 那类 URL 腐烂）。
+
+### 从本地源码（开发模式，不计入下载量）
 
 ```bash
-# 或任意 git 仓库地址（若该仓库未提交构建产物，
-# 则需其提供 prepare 脚本并按 pnpm 提示在
-# ~/.dsh/profiles/<name>/pnpm-workspace.yaml 的 allowBuilds 中授权后重跑）
+# 源码放哪个稳定目录都行（file: 会把它拷进 profile）
+dsh plugin --profile web add file:D:\plugins\dsh-deepseek-style-theme
+```
+
+> 不要 `cd` 进插件源码再执行 `add .`——`.` 会展开成调用目录的绝对路径，落成 `link:`，于是踩中上面的坑。
+
+### 从 GitHub（本仓库，不计入下载量）
+
+```bash
+dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
+```
+
+> 本插件是纯 JS 且 `lib/` 已提交到仓库，Git 安装**无需构建**——不会触发 pnpm 的 `prepare`/`allowBuilds` 授权流程，一次 `add` 即可生效。GitHub 安装的包同样默认落在 profile 第三方插件区（独立目录），不会进入官方 dsh 安装目录。每个版本对应的 `tgz` 归档附在 [GitHub Releases](https://github.com/Lichtspur/deepseek-style-theme/releases) 页面。
+
+> **代理 / 企业网络**：`github:` 安装要靠 pnpm 调 `git clone`，在带 TLS 中间人证书审计的网络里会以证书错误失败——Windows 上是 `schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS (0x8009030e)`，改用 OpenSSL 后端后变成 `unable to get local issuer certificate (20)`。报错信息只看得到 TLS，很容易误判成插件的问题。这类环境请直接用下面的 **tgz** 或本地目录安装。
+
+### 从本地 tgz（推荐用于代理 / 离线环境，不计入下载量）
+
+```bash
+dsh plugin --profile web add ./releases/dsh-deepseek-style-theme-1.43.1.tgz
+```
+
+`releases/` 下的归档随每个 Release 发布，既不依赖 git 也不依赖 registry，在受限网络里最省事。
+归档文件名由 `package.json` 的 `name` 与 `version` 决定（`pnpm pack` / `npm pack` 均如此），
+因此 1.44.0 起是 `dsh-deepseek-style-theme-<版本>.tgz`。
+
+### 从任意 Git 仓库（不计入下载量）
+
+```bash
 dsh plugin --profile web add <git-url>
 ```
+> 若该仓库未提交构建产物，则需其提供 `prepare` 脚本；按 pnpm 提示在
+> `~/.dsh/profiles/<name>/pnpm-workspace.yaml` 的 `allowBuilds` 中授权后重跑。
 
 ### 依赖是怎么解析的（排错用）
 

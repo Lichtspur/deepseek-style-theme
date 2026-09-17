@@ -5,12 +5,45 @@
 安装/升级：
 
 ```bash
-dsh plugin --profile web add github:Lichtspur/deepseek-style-theme
+dsh plugin --profile web add dsh-deepseek-style-theme
 ```
 
-纯 JS、`lib/` 已入库，git 安装无需构建授权。
+npm 也是四者里最省事的一条：不走 `git clone`（绕开代理 / 证书问题），也不依赖 GitHub Release 资产。
+
+> **只有这一条计入 npm 下载量。** `github:` / 本地 tgz / `file:` 都绕开 registry，装多少次都不会让 npm 的统计动一下。
+
+纯 JS、`lib/` 已入库，git 安装无需构建授权——但它和其它非 registry 方式一样，不进统计。
 
 ---
+
+## 未发布 — 文档修正（2026-09-17）
+
+### 安装章节改以 npm 为准：它是唯一计入下载量的安装方式
+
+邀请试用后 npm 侧近 7 天**零计数**（`/versions/dsh-deepseek-style-theme/last-week` 返回空）。
+查下来不是包的问题，是安装章节在劝人别用 npm：
+
+- 「从 npm」排在第 **5** 位，前面四条（`file:` / `github:` / 本地 tgz / 任意 git 源）全部绕开 registry；
+- 它还压着一条 ⚠️「暂时不要用这一条」，理由是「npm 的 latest 仍是 1.43.1，1.43.3 已修复，在那之前请用 tgz 或 `github:`」。
+
+而 npm 的发布记录显示：`1.43.1` 首发于 `2026-09-15T08:40:24Z`，`1.43.3` 于同日 `10:27:35Z` 上线——**相隔 1 小时 47 分**；
+`latest` 现为 `2.0.88`。那条警告已过期两天，却一直在把读者推向不产生 registry 请求的路径。
+
+本次改动：
+
+- README 新增「## 安装方式」，**npm 提为第一个推荐项**，删除过期警告；
+- 其余四种方式标题一律标注「不计入下载量」，让读者在选择处就看到后果；
+- 改名三引用点表与 `allowBuilds` 授权说明两条**保留**（与安装源无关，仍然有效）。
+
+### 已知残余偏差（不是本次改动能解决的）
+
+「下载区域」为 `china` 时，市场把 npm 请求发给镜像（`mirrors.cloud.tencent.com/npm`），**不进 npm 官方日志**。
+因此国内测试者即使照 npm 命令安装，也不会计入统计——国内占比越高，这个偏差越大。
+
+### 说明
+
+- **纯文档改动**：`lib/` 与 `cordis.patch.yml` 未变，**不占版本号**，无新 Release、无 npm 发布。
+- 已在真实仓库基线（`master` 的 README，`sha256 4531bb09…`）上验证补丁干净应用且逐字节一致。
 
 ## v2.0.88 — 2026-09-16
 
