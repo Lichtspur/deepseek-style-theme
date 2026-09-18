@@ -16,6 +16,27 @@ npm 也是四者里最省事的一条：不走 `git clone`（绕开代理 / 证�
 
 ---
 
+## v2.0.89 — 2026-09-18
+
+### dsh 0.1.5-rc.2 实测适配：这台开发机的 Chrome 终于能跑 GUI 复核了
+
+主题在 rc.1 上做的两项适配（去掉已删除的 `dsh-client-runtime` inject、宿主端注册改 best-effort）到 rc.2 依然有效，本次**没有代码改动**——改的是「验证」这件事本身：
+
+- 之前每版的「验证」一栏都写着**真机复核未做**（审批策略为 never，起不了 headless Chrome）；这次把测量链路搭起来了：独立 `DSH_HOME` + 独立端口装最新 dsh（0.1.5-rc.2）+ 真 Chrome 渲染 + 页内读数。
+- 复核环境与结果（本机 Chrome 152，1440×900，浅色）：
+  - `window.__dshomeBuild` = `2.0.89 rc2-verified`（本版新标记），`__dshomeTilt` / `__dshomeGlassProbe` / `__dshomeDispersion` / `__dshomeFluidFormat` 四个自检入口全部就位；
+  - 页面标记齐备：`body[data-dshome-color=green][data-dshome-bg=white]`、`html[data-dshome-glass=liquid][data-dshome-composer=narrow][data-dshome-blur=on]`；
+  - 流体画布在跑（`<canvas>` 全屏、`position:fixed`），对话框卡片拿到 `blur(11px) saturate(1.75) brightness(1.05) contrast(1.02)`；
+  - **0 个未捕获异常、0 个页面级 error、0 个失败请求**；控制台只有主题自己的两行 `info` 配色日志。
+- 两处环境坑记在这里，省下次重搭：Playwright 默认的 `--remote-debugging-pipe` 与 detached 启动的 Chrome 在本机沙箱里都活不过一次调用，最终用的是**同进程内拉起 Chrome + WebSocket 传输（`pipe:false`）**的 puppeteer-core 路线。
+
+### 验证
+- `parse-smoke` **13/13（全部干净 UTF-8）**、`bg-recipes-smoke` **82/82**。
+- 真机复核：**已做**（上面那套链路，最新 dsh + 真 Chrome）。
+
+### 回退
+`@2.0.88`。纯版本标记变更，行为与 2.0.88 一致。
+
 ## 未发布 — 文档修正（2026-09-17）
 
 ### 安装章节改以 npm 为准：它是唯一计入下载量的安装方式

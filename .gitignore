@@ -2,7 +2,10 @@ node_modules/
 *.tgz
 *.zip
 dsh-external-*/
-releases/
+releases/*
+# Release notes are plain prose and are worth versioning (the archives next to
+# them are not): they are the text pasted into each GitHub Release.
+!releases/notes-*.md
 .aw-work/
 .npm-cache-tmp/
 .aw-yml/
