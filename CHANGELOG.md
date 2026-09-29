@@ -16,6 +16,31 @@ npm 也是四者里最省事的一条：不走 `git clone`（绕开代理 / 证�
 
 ---
 
+## v2.0.90 — 2026-09-29
+
+### 默认回到「主色 + 纯白 + 近白」、浮层菜单补上液态玻璃、修掉误伤审批卡的字号补丁
+
+在 dsh **0.1.7-rc.2** 上实测适配，三处改动都由用户当面的反馈驱动，并且都在真机页面上量过：
+
+- **背景方式默认 `bold` → `classic`**。2.0.83 把默认改成 `bold` 的理由（`classic` 会被眼睛读成蓝白洗色）在真机上依然成立，但用户看过两档后**明确要 `classic` 当默认**：默认就该是「主色 + 纯白 + 近白」，`bold` 留在 DSTT 面板里可选。README 的背景方式一节同步改口。
+- **浮层菜单上玻璃（新样式表 `MENU_GLASS_CSS`）**。用户指出「权限按钮 / 代理预设菜单这里应该也得是液态玻璃形态」。实测定位：菜单被 portal 到所有玻璃面板之外，而它自带的材质铺了一层不透明的 `rgba(248,249,250,.58)`（`blur(40px) saturate(1.5)`），所以液态会话里菜单是唯一一片不透光的白。新样式表锚在产品自己的材质钩子 `[data-menu-material]` 上（**不是** class 哈希），**只加玻璃身份、不重画材质**：外圈用主题的 `--dshome-liquid-shadow` + `--dshome-liquid-ring` 内描边，圆角 `--dsw-radius-lg`；白磨砂档位下只加 `--dshome-glass-ring`。菜单里的填充、可读性与产品自带的背板模糊全部原样保留。
+- **修掉空态标题补丁的误伤（本版最要紧的一条）**。用户反馈「审批卡字号太大」。排查：该补丁的锚点原为「防产品再改名」而写成模糊后缀 `[class*="_headline"]`，于是**同时命中了审批卡的 `.mna1RW_headline`**，把卡片标题从产品声明的 `15px` 放大到规则里的 `34px`；暗色那条 `body[data-dshome-dark] :is([class*="_headline"])` 渐变规则同样命中，暗色下卡片标题会变成透明字 + 渐变。浅色与暗色两条规则现已一并收窄到首屏 `composerHero` 一支（连同 `previewBadge`）。
+
+> 定位方法值得留档：把产品自带的审批卡 CSS 原样搬进一个本地对照页，在 450 / 640 / 1125 / 1440 四个视口宽度下测同一段文字——**永远是 15px**，而真机页面读数是 **34px**。这一步排除了「浏览器缩放」这个我先前的误判，把范围钉在页面内的 CSS 上，随后在主题源码里查到那条 `font-size:34px`。
+
+### 验证
+- `node --check lib/client.js` 通过；`tools/parse-smoke.mjs` **13/13**、`tools/bg-recipes-smoke.mjs` **82/82**。
+- **真机复核（本机 Chrome，headless，1440×900，浅色）**：同机跑 `dsh web`（0.1.7-rc.2，profile `web`），Playwright 铸浏览器会话 Cookie 后加载真实 GUI。
+  - 页面收到的插件包已含改动：`DSTT_BACKGROUND_DEFAULT = "classic"` 与 `MENU_GLASS_CSS` 同时在 `/plugins/...dsh-deepseek-style-theme/client.js` 的响应里（HTTP 200）；
+  - `body[data-dshome-bg=classic]`（改动前为 `bold`）；
+  - 三个浮层逐个打开读数：代理预设 / 权限 / 模型菜单的外层容器拿到 `box-shadow: rgba(9,20,44,.16) 0 18px 54px, inset 0 0 0 1px rgba(255,255,255,.26)`，菜单内容层保持 `rgba(248,249,250,.58)` + `blur(40px) saturate(1.5)` 不变；
+  - 字号误伤修复后：页面上只有一个 `_headline` 元素（首屏 `pXSMma_headline`），读数 `34px` 且 `inHero=true`，再无其它元素被该规则命中；
+  - 权限选择器在挂载官方 `@deepseek-ai/dsh-experimental-auto-review` 后呈现完整四档：`仅可查看 / 工作区内修改 / 完全权限 / Auto review (EXP)`；
+  - 实拍截图：`_compat/shots/verify-preset.png`、`verify-permission.png`、`verify-model.png`。
+
+### 回退
+`@2.0.89`（背景默认回到 `bold`、撤掉 `MENU_GLASS_CSS`、标题补丁恢复模糊后缀）。
+
 ## v2.0.89 — 2026-09-18
 
 ### dsh 0.1.5-rc.2 实测适配：这台开发机的 Chrome 终于能跑 GUI 复核了
