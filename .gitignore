@@ -10,3 +10,4 @@ releases/*
 .npm-cache-tmp/
 .aw-yml/
 .tmp-inspect/
+lib/*.bak
