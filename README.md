@@ -26,8 +26,8 @@
 - **DeepSeek 品牌链接**：点击侧边栏 DeepSeek 标识跳转 `https://www.deepseek.com/`
 - **轨迹视图**：「对话 / 轨迹」标签在标题栏悬停（`.dshome-swap`）或轨迹视图存在时显示，**不是常驻**——会话视图下实测 `[class*="wSkVaW_tabs"]` 默认 `display:none`（2.0.84 按实机报告 B4 勘误）
 - **运行中子代理面板**：有子代理启动时，右下角浮出玻璃面板，实时列出正在运行的子代理——名称、已运行时长、token 用量与流动进度条；点击条目直接跳转到该子代理会话，可折叠收起
-- **跨平台**：打开工作区目录时按系统调用文件管理器（Windows Explorer / macOS Finder / Linux 默认文件管理器）
-- **模型目录同步（1.40.0+）**：每次插件启动向 DeepSeek 端点询问一次模型列表，与 `llm-deepseek` 目录比对后按需对齐——「选择器里有哪些模型」由接口说了算，但**绝不臆造能力位、绝不清空你的条目**，移除项会逐个记日志；可用 `catalogSync: auto | add | off` 控制（详见下文）
+- **跨平台**：交付文件菜单里的「打开所在文件夹 / 在文件管理器中显示」由**官方通路**执行（`session.openWorkspacePath`），各平台调用系统文件管理器；本插件不再自己开文件管理器
+- **模型目录同步**：**已交还官方**（2.2.0 起）。官方自带模型目录（`ui-model-selection` + `modelCatalog`），"选择器里有哪些模型"以官方为准；本插件不再介入，也不再写 `llm-deepseek.models`。
 - **交付文件菜单（1.41.0+，1.41.2 起覆盖两处）**：回复末尾的**「本轮文件改动」条目左键点击**即弹出玻璃拟态操作菜单，**交付文件卡片右键**弹出同一菜单——**用默认应用打开 / 打开所在文件夹 / 复制路径 / 打开预览**（卡片上显示为「在侧边栏预览」）；产品自己的下拉菜单里也补上它唯一缺的「复制路径」。产品原本的左键动作被保留成菜单项，不会被丢掉
 - **时段提示（DSTT）**：主题模式四选一——**峰谷红蓝**（高峰鲜红、谷时段蓝）/ **峰谷红绿**（高峰鲜红、谷时段绿）/ **常态绿** / **常态蓝**；高峰窗口北京时间 9:00–12:00、14:00–18:00（周六周日全天非高峰），高峰色为鲜红 `#F5222D`
 
@@ -39,6 +39,36 @@
 - **常态绿**：始终绿色，无高峰区分；
 - **常态蓝**：始终蓝色，无高峰区分。
 
+## 语义锚点版（2.1.0+，面向 dsh 0.2.x 官方桌面版）
+
+产品每次构建都会重排 CSS Module 哈希（0.1.7 的 `.wSkVaW_*` → 0.2.0 的 `.Dc7zOa_*`），
+任何写死类名的补丁都会在更新后**静默失效**。2.1.0 起主线只依赖**产品语义钩子**，不再写死哈希：
+
+| 保留（语义） | 依据 |
+|---|---|
+| 输入卡玻璃化 | `[data-composer-stats]` / `[data-composer-card]` |
+| 浮层菜单液态玻璃 | `[data-menu-material]` |
+| 交付文件卡片 / 文件改动行 | `[data-presented-file]` / `[data-presented-files-row]` |
+| 文件弹窗（打开文件/复制路径/打开文件夹） | `button[data-ref-chip]` / `[data-presented-*]` |
+| 用户气泡 | `[data-chat-flow-kind="user"]` |
+| 首屏标题 / 预览角标 | `[class*="_headline"]` / `[class*="_previewBadge"]` |
+
+同时把 `installGuarded` 从「挂载时查一次」升级为 **MutationObserver**：懒挂载的面板与
+晚出现的行也能等到样式，不再有「刷新一下才生效」这一类问题。
+
+### 这一版的取舍（明确不做）
+
+下列面在 0.2.0 里**没有语义钩子**，只有每次构建都会变的类哈希，因此不再覆盖：
+
+- 侧栏外壳的玻璃与折射、应用外框、标题栏悬停胶囊与中/EN 切换定位、光标高光跟随、
+  会话行/项目行样式、settings 与子代理面板的内部样式。
+
+代价是视觉上少两块（侧栏、外框），换来的是一条规则：**产品更新不需要改主题**。
+
+2.0.90 那套写死哈希的实现留在 git 历史里，需要时用
+`git show 193d691:lib/client.js > lib/client.js` 取回——**不要把哈希版当回退方案**：
+它的锚点（`.wSkVaW_*`、`.hHd-Xa_*`、`.YDXeBa_*`…）在当前 0.2.0 产品里**全部 0 命中**，
+拿回来同样是没有样式的（实测）。
 另有几行开关与选项：
 
 - **背景方式**（`backgroundMode`，默认 `classic`；2.0.73+）：一行四选，**切换即时生效、不用刷新页面**。
@@ -249,48 +279,12 @@ dsh plugin --profile web add <git-url>
 - 它失败时**不会**再拖垮整棵插件树：`lib/index.js` 用受保护的动态 `import()` 加载 schemastery，拿不到就只丢一行警告、DSTT 模式不再持久化，主题其余部分照常工作（1.41.0 起）。
 - 不要指望 `.dsh-module-fallback/node_modules` 帮忙补依赖：在**从未装过依赖**的 profile 里它一直是空的，bundle 实际是从 CLI 安装目录（如全局 npm 的 `node_modules`）解析的。所以插件依赖必须真的装在 profile 里。
 
-## 模型目录同步
-
-DSH 的官方 DeepSeek 路由是**声明式**的：`listModels()` 只返回配置里的条目，**从不探测网关**（官方 README：「默认目录预注册…不探测网关可用性」）。所以接口上新出了模型、或下线了某个 id，选择器都不会自己变。本插件在**每次插件启动**（`dsh web` 启动 / 插件重载）时补这一次探测：
-
-1. 读 `llm-deepseek` 设置段的 `baseURL` / `apiKeyEnv`（自定义网关同样正确）；
-2. `baseURL` 未配置时，按官方适配器的顺序回落：`launchEnvironment` 的 `$DEEPSEEK_BASE_URL` → 公开端点 `https://api.deepseek.com`；
-3. 按官方适配器的方式经 `credentials` 解析该密钥（缺失则该步跳过）；
-4. `GET {baseURL}/models`（5 秒超时），取接口声明的 id 列表（保持接口顺序）；
-5. 与当前目录比对并决定是否写入。
-
-### 写入语义（1.41.0 起收紧）
-
-- **只增补已知能力位的 id**：接口只给 id，给不了 `inputModalities`、`systemPromptUpdate`、上下文窗口。已存在的条目**原样保留**（用户的改动不会被覆盖）；新 id 只有在内置映射表里有（`deepseek-flash`、`deepseek-v4-pro`）才会被采纳，**映射表外的 id 只报告、不采纳**——凭空造一个 `inputModalities: ["text"]` 的条目会把一个视觉模型悄悄降级成纯文本，这是 1.40.0 的缺陷。
-- **只有「接口声明的每个 id 都能描述」时才整表对齐**（`auto`）：此时接口没列出的存量 id 会被移除，且**在日志里逐个点名**。官方路由只声明几个 DeepSeek id；若 `baseURL` 指向聚合网关，它会声明整个模型库，此时整表对齐会把你的目录替换成几百条无关条目——所以这种「看起来不是官方目录」的回答会退化成**只追加、不删除**并打一行警告。
-- **并发安全**：写入带 `expectedRevision`。你在设置页同时改了模型配置的话，你的改动赢，这次启动的同步直接放弃（下次启动再试）。
-- **完全 best-effort**：没有 settings / 没有凭据 / 网关不可达 / 服务改名 / 版本冲突等任何异常都不会抛出，绝不影响主题本身，也绝不会写坏模型目录。
-- **只在需要时写入**：目录一致时不产生任何设置写入事件。
-
-### 开关
-
-本插件自己的设置段提供 `catalogSync`（默认 `auto`）：
-
-```yaml
-deepseek-style-theme:
-  mode: peakvalley-redblue
-  catalogSync: auto   # auto | add | off
-```
-
-| 值 | 行为 |
-|---|---|
-| `auto`（默认） | 可描述时整表对齐（含移除接口不再列出的 id，并记日志）；否则只追加 |
-| `add` | **永不删除**，只追加新增的已知 id |
-| `off` | 只探测并在日志里报告漂移，**不写任何设置** |
-
-想彻底关掉：设 `catalogSync: off`（仍会探测一次并打日志），或停用本插件。已写入的 `llm-deepseek.models` 段可自行删掉，DSH 会回落到内置默认目录。
-
 ## 必要权限
 
 - **安装期**：需要修改 web profile（`~/.dsh/profiles/web/` 的 `package.json`、`dsh.profile.bundles` 装配列表与 `node_modules`）；Git 安装还需按上文授权 pnpm 执行构建脚本。
 - **运行时（DSH 审批/沙箱）**：**不需要任何额外权限**——不注册工具、不执行模型调用、不请求审批或沙箱提升。它只是纯前端皮肤 + 一个受限 RPC 通道。
-- **运行时的唯一出网动作**：插件启动时的**模型目录同步**（1.40.0+）会读一次 `llm-deepseek` 设置段与其中的密钥引用，并向该段的 `baseURL` 发一次 `GET /models`（5 秒超时）。`baseURL` 未配置时按官方适配器的顺序回落（`$DEEPSEEK_BASE_URL` → `https://api.deepseek.com`），**不会**在自定义网关部署下把密钥发去公开端点。仅在需要时写回 `llm-deepseek.models`；离线、无密钥或服务缺失时静默跳过。开关见上文 `catalogSync`。
-- **系统级副作用**：「打开工作区目录」会调用系统文件管理器（Windows Explorer / macOS Finder / Linux 默认文件管理器）并在前台打开该目录。交付文件卡片的操作菜单另有三个动作：`dshome/file.open` 用系统默认应用打开该文件（Windows `Start-Process`、macOS `open`、Linux `xdg-open`）、`dshome/file.reveal` 在文件管理器中**定位**该文件（Windows `explorer /select`、macOS `open -R`、Linux 打开所在目录）、「复制路径」纯前端写剪贴板、不经过宿主端。前两者与「打开工作区」走同一条通道、同一套围栏，同样只接受本机绝对路径。
+- **出网动作：没有**。2.2.0 起本插件不发起任何外部请求——原先"插件启动时向端点同步一次模型目录"的那一条，已随该功能一并移除。
+- **系统级副作用**：交付文件卡片的操作菜单有四个动作。「打开文件」与「打开所在文件夹」**优先走官方通路** `session.openWorkspacePath({ path })` / `({ path, action: 'reveal' })` —— 宿主侧自己校验路径、解析工作区映射，拿不到已验证映射时抛错而不是猜。「复制路径」纯前端写剪贴板，不经过宿主端。只有在官方这条远程不存在时（旧内核），前两者才回落到本插件自己的私有通道 `dshome/file.open`（Windows `Start-Process`、macOS `open`、Linux `xdg-open`）与 `dshome/file.reveal`（Windows `explorer /select`、macOS `open -R`、Linux 打开所在目录），那条通道同样只接受本机绝对路径、走同一套围栏。**「打开工作区目录」已在 2.2.0 移除**：那个手势改用官方的 open-in-app，本插件不再自己开文件管理器。
 - **私有 RPC 通道的围栏**（1.41.0 起与 dsh 核心 `/api` 同一套判定）：只接受
   1. **回环对端**（`127.0.0.1` / `::1`）——该通道一直如此；
   2. `Host` 为回环权威（`127.x` / `[::1]` / `localhost`），挡掉 DNS rebinding；
@@ -299,7 +293,7 @@ deepseek-style-theme:
   5. `payload.path` 必须是**本机绝对路径**：相对路径、含 NUL、UNC（`\\host\share`、`//host/share`）一律拒绝。UNC 会让 Windows 向该主机做认证，可被用来外带 NTLM 哈希。
 - **数据可见性**：客户端读取会话列表元数据（标题、运行状态、token 用量）仅用于页内展示「运行中子代理」面板，不上传任何外部服务器；唯一的网络跳转是点击品牌标识时打开 `deepseek.com`（显式用户操作）。宿主端的唯一请求是上一条所述的 `GET {baseURL}/models`，只发往你配置的 DeepSeek 端点，不携带会话内容。
 - **桌面壁纸（2.0.75+，只在显式选择时触发）**：只有当你在 **③ 自选背景**里把输入框填成 `desktop`（或点「桌面壁纸」按钮）时，宿主端才读一次本机壁纸——优先 Windows 的 `TranscodedWallpaper`（当前实际显示的那张），退回注册表 `HKCU\Control Panel\Desktop\WallPaper`，再退回注册表的纯色值——并把图片经**同源围栏下的 GET 子路径**发给本页当 CSS 背景。该端点**不接受任何输入**（没有路径参数、没有查询串），所以它能供出的永远只有宿主自己解析到的那张图；响应带 `Cache-Control: no-store`，壁纸换了刷新即见。**图片只在本机回环上传输，不上传、不缓存、不落盘**，会话记录里也不会出现它的内容。网页本身没有任何 API 能访问系统壁纸，所以这一步只能由宿主端做。留空**不会**触发它（留空 = 纯白/纯黑，或让位给壁纸引擎）。
-- **配置落盘**：DSTT 主题模式与同步开关写入 profile 的 `settings.yaml`（`deepseek-style-theme` 段）；模型目录同步在需要时写入同一文件的 `llm-deepseek` 段（带乐观锁，不覆盖你并发的修改）。
+- **配置落盘**：DSTT 主题模式写入 profile 的 `settings.yaml`（`deepseek-style-theme` 段）。
 
 ## 卸载
 
@@ -324,8 +318,6 @@ dsh plugin --profile web remove dsh-deepseek-style-theme
 | `bg-recipes-smoke.mjs` | 客户端源码层的数据与契约断言（2.0.73+，随每版增补）：① 必须含纯白 + 近白、② 只有两个颜色参与、`bold` 浅色无 `#FFFFFF`、③ 的基底/让位规则与选择器守卫、壁纸引擎标记与「提示而非自动切换」、桌面壁纸端点与 `WallpaperStyle` 映射、`darkSync` 作用域、两条反引号守卫（整表扫描）、发送按钮 hover 不再位移、流场 16F 探测与回退、悬停倾斜的抬升 1.01 与 `TILT_CONTROLS` 不含文字录入、进入控件时冻结而非释放、释放只在离开卡片矩形、两套玻璃配方都生效（2.0.82）、横向裁切覆盖消息列/对话框/转写区、**8 个 CSS 契约名必须已声明 + 模板插值不得早于 const 声明（2.0.84：`ATTR` 被误删、`USER_BUBBLE` 提前插值都属于这一类，`node --check` 看不见）**（73 项） | `node tools/bg-recipes-smoke.mjs [lib/client.js]` |
 | `parse-smoke.mjs` | **每个文件都必须能解析**（2.0.84+）：`lib/` 与 `tools/` 下每个 `.js/.mjs` 过一遍 `node --check`。看着多余，其实不是——已经有三次"注释里的反引号把模板字符串提前结束"的事故（`lib/client.js` 两次、`tools/gui-probe.mjs` 一次，后者 Node 的报错还不带文件名）。纯解析门，不做 lint | `node tools/parse-smoke.mjs` |
 | `fluid-precision-test.mjs` | **流场存储精度对照实验**（2.0.81+）：把 `lib/client.js` 里的真实 `VERTEX_SHADER` / `FLOW_SHADER` 抠出来，在无头 Chrome 里对同一场景各跑 240 步，分别存 RGBA8 与 RGBA16F，读回统计"取值分布 / 落在 1/255 网格上的层级 / max / mean"，并判定 16F 是否真的摆脱了量化（5 项）。**需要 Chromium 系浏览器**，且 Chrome 在受限进程里起不来，请从普通终端跑 | `node tools/fluid-precision-test.mjs [--chrome <路径>] [--keep]` |
-| `catalog-sync-smoke.mjs` | 模型目录同步的全部分支：一致 / 可描述漂移 / 聚合网关目录 / 只追加 / `off` / baseURL 解析顺序 / 无密钥 / 端点故障 / 命名空间未就绪 / 版本冲突（27 项检查，全用替身，无需凭据与网络） | `node tools/catalog-sync-smoke.mjs [已安装的 lib/index.js]` |
-| `catalog-sync-live.mjs` | 用**真实端点 + 真实密钥**跑一遍同步：A 场景（目录已一致）应 0 写入，B 场景（人为制造漂移）应恰好 1 次写入并复原条目；写入被拦下，不落盘 | `DEEPSEEK_API_KEY=... node tools/catalog-sync-live.mjs [--profile web] [--drift-id deepseek-v4-pro]` |
 | `gui-probe.mjs` | 无头浏览器直连 CDP 量实时页面：主题注入了哪些样式与补丁块、标题栏几何与子元素 flex order、标题栏下方带边框元素与**逐行亮度扫描**（1px 横线会表现为数值尖峰）、各胶囊的 `corner-shape`、中/E 悬停前后、对话/轨迹标签、`--models` 时的模型选择器选项、`--file-card` 时合成两张交付表面并验证左键/右键菜单（条目、定位、复制提示、预览转发、选中后关闭）、`--deliverables` 时报告真实页面上两处交付表面的存在情况与点击后果、`--ambient` 时报告背景到底是流体还是粒子回落、折射是否挂上、玻璃配方是否生效，并悬停一次验证 `--dshome-spec-x/y` 真的在写、`--glass` 时逐个报告玻璃面的计算样式与 `::before`/`::after` 是否已被产品占用、`--messages` 时报告气泡的类名分组、祖先对齐链与 `data-chat-flow-kind` 取值表（气泡的 role 判定就靠它）、`--shot <目录>` 时落一张全页截图，`--pre <文件>` 可在截图前先跑一段页面侧表达式（`--pre-arg` 作为 `window.__preArg` 传入），用于拍出「指定玻璃配方 × 指定明暗」的矩阵 | 见下 |
 
 ```bash
@@ -348,13 +340,11 @@ node tools/gui-probe.mjs --models --file-card
 ├── releases/                       # 发布产物（tgz 归档）
 ├── tools/                          # 自测工具（不随包发布）
 │   ├── bridge-smoke.mjs            # 宿主端私有 RPC 通道冒烟测试
-│   ├── catalog-sync-smoke.mjs      # 模型目录同步冒烟测试（六种分支）
-│   ├── catalog-sync-live.mjs       # 同步的真端点/真密钥校验（写入不落盘）
 │   ├── symptom-probe.js            # 贴进控制台的现场探针（环境报告 + 采样 + 逐帧 diff + 开关）
 │   ├── symptom-probe-selftest.mjs  # 上面那份探针的自测（合成页面 + CDP 真实鼠标）
 │   └── gui-probe.mjs               # 实时页面的无头浏览器探测与像素扫描
 └── lib/
-    ├── index.js                    # host 端：打开工作区 / 交付文件 RPC、DSTT 设置、模型目录同步
+├── index.js                    # host 端：交付文件 RPC、DSTT 设置、桌面壁纸
     └── client.js                   # 主题 client 端（含流体背景、液态玻璃、交付文件卡片菜单）
 ```
 

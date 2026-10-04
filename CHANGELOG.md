@@ -16,6 +16,66 @@ npm 也是四者里最省事的一条：不走 `git clone`（绕开代理 / 证�
 
 ---
 
+## v2.2.0 — 2026-10-03
+
+### 适配官方桌面预览版 0.2.0-rc.2：把丢掉的视觉找回来，并把十一项功能决定逐条落地
+
+本版全部改动由用户逐条提出、逐条真机复核。分成七块。
+
+**一、液态玻璃"整个没了"的根因：一条规则的选择器头被删成了断头。**
+
+`LIQUID_CSS` 里有三处只剩 `){`——主填充规则（半透明填充 / 光标高光 / 竖向光泽 / 背板模糊链 / 内外描边与投影）、用户气泡的折射规则、以及不支持 `backdrop-filter` 时的兜底。浏览器遇到没有选择器的规则会**整条丢掉**，所以症状不是"样式不对"而是"四块面的液态玻璃一起消失"。三处头全部接回，并按语义钩子重建三个面：侧栏外壳、输入卡玻璃板、用户气泡。侧栏那一份（重填充 / 重模糊 / `::after` 走光边环 / `_fade` 处理 / 暗色折射）也一并搬回。
+
+**二、流体背景被产品的整屏不透明底色盖住。**
+
+产品给每一块整屏面板都铺了 `background:var(--dsw-alias-bg-base)`（`BynINW_frame` / `_centerCol` / `_rightbarCol` / `Dc7zOa_root` / `_composerSeat`），而主题的底纹在 `body::before`（z-index −2）、流体画布在 z-index −1，都排在它们**下面**。实测对比：对话区恒为 `#f6f7fb`，而主题正常工作时同一点是 `#a7dfc9`（2026-09-18 存档）。新增一块补丁把这些整屏面板透明化——外框用"同时把 `_centerCol` 与 `_sidebarCol` 当**直接子元素**"来认，会话根用 `div[class*="_root"][data-phase]`（产品 JSX 里就是这个组合），都不写死哈希。修后同一点实测 `#e7edfa`。
+
+**三、输入卡玻璃的落点试了三个位置，最后定在卡片自己。**
+
+| 落点 | 实测 | 结果 |
+|---|---|---|
+| `data-composer-stats` 的父元素 | 盒子 **0×0**（`display:contents` 空壳） | 玻璃画上去等于没画——这就是"输入卡一直纯白"的原因 |
+| 卡片的父元素 | **418×158**（左右各多 16px 内边距、下面多出统计行所在的 dock） | 用户看到"对话框被撑大了"，连鼠标随动的倾斜也摊到那一大块上 |
+| **卡片自己**（采用） | **386×98**，与产品同尺寸 | 只换底色与模糊，**不动产品的圆角/边框/内边距**，尺寸与位置一个像素不变 |
+
+代价：失去 2.0.88 的"输入区 + 统计行合成一块玻璃板"——统计行回到产品自己的背景上。要融合板，正确做法是先把那一层多出来的内边距与 dock 收掉，而不是把玻璃直接铺上去。
+
+**四、§3 的十一项决定。** 其中改动了行为的四条：
+
+| 决定 | 落地 |
+|---|---|
+| 5 模型目录同步用官方 | **整体删除**：宿主端 293 行 + schema 字段 + 策略常量 + 已知目录表 + README 整节与另外 5 处引用 + 两个只服务它的工具脚本。官方自带 `ui-model-selection` + `modelCatalog`，选择器内容以官方为准 |
+| 8 字号用官方 | 删掉两条 `font-size:34px` 首屏标题规则——锚点 `composerHero` 在当前产品里 **0 命中**，它们早就是死的，删掉没有任何视觉变化。预览角标的锚点同时从 `[class*="composerHero"] [class*="_previewBadge"]` 收回到 README 语义表里本来写的 `[class*="_previewBadge"]` |
+| 2 交付文件菜单借官方接口 | 「打开文件」「打开所在文件夹」改走 `session.openWorkspacePath({ path })` / `({ path, action: 'reveal' })`；官方的文案表里**没有** `presented.copyPath`，所以「复制路径」保留我们自己的（纯前端剪贴板）。私有通道 `dshome/file.*` **降为官方不可用时的兜底**，并注明兜底的代价：那是本插件自己的实现，产品换做法时它不会跟着变 |
+| 9 文件管理器打开用官方 | 删掉自建的「打开工作区」菜单 `watchWorkspaceMenu`（177 行）——它锚在 `.YDXeBa_projectRow/_rowActions/_title` 上，这三个类名在当前产品里 **0 命中**，功能本来就是坏的；官方 open-in-app 已挂在 `conversation.session.header.utilities` 与 `sidebar.right.tab.files.actions` 两个 slot 上。宿主端随之变死的 `dshome/explorer.open` 端点与两个辅助函数（`openPathGeneric` / `openExplorerForeground`，40 行）一并删除 |
+
+未改动的：1（插件本来就没有自建权限预设）、4（行内 `@file` 点击接管 2.1.0 已撤）、6a（子代理面板的拖动 + localStorage 记忆已实现）、10、11。
+
+**五、子代理「禁用」红按钮。** 真凶不是地址解析（那部分已改用官方的 `ctx.sessions.subagentAddress`），而是**门控**：旧代码要求 `address.mode === 'continuable'` 才肯调用，而官方是**写死传 `"continuable"`**，于是 one-shot 子代理永远落进"没权限"分支、按下去只闪一下红。现按官方 `cancel()` 逐条对齐：有地址就 `subagents.interruptByParent(child, parent, 'continuable')`，无地址走 `session.cancel({ sessionId })`，都不可用才退回会话面板的 `face.cancel()`；失败不再静默（写控制台 + 按钮悬停提示）。
+
+**六、标题栏右上角三个按钮与标题栏之间的界线。**
+
+那三个按钮是 Electron `titleBarOverlay` 画的、CSS 选不到，但**底色可以改**：外壳在渲染进程里放了一个探针 `span`，它的 `background-color` 写成 `var(--dsw-specific-sidebar-fill)`、图标色取 `--dsw-alias-label-primary`，每帧量出来发给主进程 `setTitleBarOverlay`。原来那条是 `rgba(255,255,255,0.5)`：半透明白压在**窗口的亚克力底**上量出 `#f9fafe`，压在**页面的流动背景**上量出 `#eaeffa`——同一条 token、两个底，必然分家。扫行定位到界线在 x≈1780，改成不透明的 `#eef2fd`（暗色 `#0b1730`）。
+
+两个坑写进注释：**必须不透明**（半透明会再分家）、**不能写 `color-mix`**（外壳用 canvas 的 `fillStyle` 解析这个值，canvas 不认，会**静默退回上一个值**）。代价：标题栏最上面 40px 不再透出流动背景。
+
+**七、更新之后"哪条选择器失效了"的自检。**
+
+新增 `window.__dshomeAnchors()`：把每个补丁锚点当天的命中数摆出来，并把零命中的单列一份。锚点表**直接从 `PATCH_BLOCKS` 推导**，不另维护一份，免得两边走散。它只查"产品里还有没有这个锚点"——命中数非零不等于样式正确，命中 0 则一定没生效。版本标记同时从写死的 `2.0.89 rc2-verified` 改成在激活处统一写 `2.2.0 adapt-0.2.0-rc.2`（2.1.0 的包曾经报的是 2.0.89）。
+
+### 验证
+- `node --check`：`lib/index.js`、`lib/client.js` 通过。
+- `tools/parse-smoke.mjs` 12 文件、`tools/bg-recipes-smoke.mjs` 82/82、`tools/dstt-schema-smoke.mjs` 29/29、`tools/bridge-smoke.mjs` 26/26。
+- 真机（官方桌面 0.2.0-rc.2，`link:` 安装）：流体背景回归（对话区 `#f6f7fb` → `#e7edfa`）；侧栏玻璃、输入卡玻璃、用户气泡玻璃、标题栏按钮界线逐项由用户肉眼确认。
+- CSS 结构体检：11 段模板字符串逐段查括号平衡与断头规则（临时检查，脚本在 `_compat`）。
+- 两条新的**反向断言**进了 `bg-recipes-smoke`：PATCH 块里不许再出现 `:has(> [data-composer-card])`，输入卡规则里不许再出现 `position:`——这两条都是本版踩过的坑。
+
+### 未解决
+- **输入框悬停自激振荡**：输入框**有内容**时，鼠标移到发送按钮上会让输入框上下跳动。已排除倾斜（实测量级只有几像素）与产品自身的悬停样式（只改 `background`）。当前第一嫌疑见 `docs/composer-hover-oscillation-report.md` 第八节：卡片上的 `backdrop-filter` 使它成为 `position:fixed` 后代的包含块，产品那个 tooltip 因此被错误锚定，接管光标后自激。报告内附三行现场二分命令（不必重载、不必改代码）。
+
+### 回退
+`@2.1.0`。注意 **2.0.90 不是可用的回退**：它是写死哈希的版本，那些锚点（`.wSkVaW_*`、`.hHd-Xa_*`、`.YDXeBa_*`…）在当前 0.2.0 产品里**全部 0 命中**，拿回来同样没有样式。
+
 ## v2.0.90 — 2026-09-29
 
 ### 默认回到「主色 + 纯白 + 近白」、浮层菜单补上液态玻璃、修掉误伤审批卡的字号补丁

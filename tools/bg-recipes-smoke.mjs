@@ -252,16 +252,16 @@ check('①②/浓三色 + wallpaper engine prompts a switch to ③, never switch
 // shifts up 8 px -> the pointer lands on another element -> the affordance closes
 // -> and back, at ~5 Hz. The theme's share of the fix is to refuse horizontal
 // scrolling in that column; the anchor keeps it honest if the class is rehashed.
-check('the conversation scroller refuses horizontal scrolling (2.0.78, widened 2.0.82)',
-	source.includes('anchor: ".wSkVaW_scrollBody"')
-	&& source.includes('[class*="scrollBody"],[class*="composerSeat"],[class*="viewArea"]{overflow-x:clip}'));
+// 2.1.0 起插件只保留语义写法，这套「拒绝横向滚动」的补丁连同哈希锚点一起移除了。
+// 这条检查改为守住那个决定本身：源码里不该再出现写死哈希的横向裁剪规则。
+check('the horizontal-overflow patch stays removed with the hash anchors (2.1.0)',
+	!/overflow-x:clip/.test(source));
 // The widening matters because the 8px step under the send button only needs ONE
 // `overflow-y: auto` container with a hover-grown child (the other axis computes to
 // auto). The first report named the message list; the composer's seat and the view
 // area can produce the same step, so all three are clipped now.
-check('the clip covers the composer and view area too, not just the list (2.0.82)',
-	(source.match(/overflow-x:clip/g) ?? []).length >= 1
-	&& !/\[class\*="scrollBody"\]\{overflow-x:clip\}/.test(source));
+check('the clip stays gone together with the hash anchors (2.1.0)',
+	!/\[class\*="scrollBody"\]\{overflow-x:clip\}/.test(source));
 
 // 2.0.79 chased the second half of the jitter by removing the tilt's lift and by
 // listing text entry as an interactive control. 2.0.82 reverts BOTH, and this
@@ -426,33 +426,38 @@ check('the page wash is a paintable layer, not a fixed-attachment background (2.
 // 2.0.87 also ungates the workspace-list fade: the user sent a screenshot of the light
 // band above 设置 under 白磨砂 ("白磨砂，有这个渐变") -- the frosted pane is translucent
 // too, so the product's opaque end stop mismatches there exactly as it did under liquid.
-check('the workspace-list fade is dropped in both recipes (2.0.87)',
-	source.includes('body .hHd-Xa_root [class*="_fade" i]{')
-	&& !source.includes('html[data-dshome-glass="liquid"] body .hHd-Xa_root [class*="_fade" i]{'));
+check('the workspace-list fade patch stays gone with the hash anchors (2.1.0)',
+	!/body \.hHd-Xa_root \[class\*="_fade" i\]\{/.test(source));
 check('the line under the composer carries the lens touch (2.0.87)',
 	source.includes("const LEAN_ATTR = 'data-dshome-leaning';")
 	&& source.includes('document.documentElement.setAttribute(LEAN_ATTR,')
 	&& source.includes('document.documentElement.removeAttribute(LEAN_ATTR)'));
-// The docked bottom bar (2.0.88, borrowed from dsh-theme-mineradio's fused state): once a
-// stats line exists, the whole input bar is ONE glass slab -- blur on the wrapper's
-// ::before, card and stats transparent inside, one hairline at the seam -- and the text
-// keeps the lens touch, scaled from its left edge so it cannot spill past the slab.
-check('the composer and its bottom bar fuse into one slab (2.0.88)',
-	source.includes('anchor: "[data-dsh-stats]"')
-	&& source.includes('[data-dsh-inputbar]:has([data-dsh-stats]){position:relative;z-index:8;')
-	&& source.includes('[data-dsh-inputbar]:has([data-dsh-stats])::before{content:"";position:absolute;inset:0;')
-	&& source.includes('[data-dsh-inputbar]:has([data-dsh-stats]) [data-composer-card]{border:none!important;')
-	&& source.includes('border-top:1px solid rgba(0,0,0,.06)')
-	&& source.includes('transform-origin:left center')
-	&& source.includes('html[data-dshome-leaning] [data-dsh-inputbar]:has([data-dsh-stats]) [data-dsh-stats]{transform:scale(1.08)}'));
+// 2.2.0 改了落点，而且是**用户实测驱动**的：融合板要求把玻璃画在"能同时框住输入卡
+// 与统计行"的那一层上，但在 0.2.0 上那一层是卡片的父元素——实测 418×158（左右各多
+// 16px 内边距、下面多出统计行所在的 dock 386×56），用户看到的是「对话框被撑大了」，
+// 连鼠标随动的倾斜也摊到那一大块上。
+// 现在玻璃落在卡片自己身上（386×98，与产品同尺寸），并且**不改产品的圆角/边框/
+// 内边距**——尺寸与位置一个像素都不动。代价：统计行不再并进这块玻璃板。
+// 这条检查守的是"输入区有玻璃、且没被改尺寸或定位"，不是某个具体层名。
+// `position` 那条反向断言是 2026-10-03 的教训：给卡片加 position:relative（当时是为了
+// 给 ::before 做定位锚点，后来方案不用 ::before 了）会顶掉产品自己的定位方式，
+// 用户看到的是「鼠标放到发送按钮上，输入框大幅上移」。玻璃只许改颜色与模糊。
+check('the composer glass sits on the card itself and never resizes or repositions it (2.2.0)',
+	source.includes('anchor: "[data-composer-card]"')
+	&& source.includes("const COMPOSER_PLATE = '[data-composer-card]';")
+	&& source.includes('${COMPOSER_PLATE}{background:rgba(255,255,255,.42)!important;')
+	&& !/\$\{COMPOSER_PLATE\}\{[^}]*position:/.test(source)
+	&& !/:where\(div\):has\(> \[data-composer-card\]\)/.test(source)
+	&& !/\[data-composer-stats\]\{transform:scale\(1\.04\)\}/.test(source));
 
 // 2.0.80 -- the last geometry change this theme made to the send/stop button
 // itself: its hover used to lift it by 1 px (`translateY(-1px)`), which is
 // enough surface motion to hand the hover to a neighbour; the product's own
 // hover on that button changes only its background. The shadow stays, the
 // transform must not come back.
-check('the send button hover changes colour and shadow only (2.0.80)',	source.includes('.uV2eYG_primary:hover{box-shadow:0 6px 18px')
-	&& !/\.uV2eYG_primary:hover\{[^}]*transform/.test(source));
+check('the send-button theme styling stays removed with the hash anchors (2.1.0)',
+	!/\.uV2eYG_primary/.test(source)
+	&& !/_primary:hover\{[^}]*transform/.test(source));
 
 // 2.0.81 -- the flow field's storage precision, which is the "drifting squares"
 // root cause on the iGPU. Measured in headless Chrome running the SHIPPED GLSL:
