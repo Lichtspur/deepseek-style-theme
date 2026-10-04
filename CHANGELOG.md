@@ -63,10 +63,29 @@ npm 也是四者里最省事的一条：不走 `git clone`（绕开代理 / 证�
 
 新增 `window.__dshomeAnchors()`：把每个补丁锚点当天的命中数摆出来，并把零命中的单列一份。锚点表**直接从 `PATCH_BLOCKS` 推导**，不另维护一份，免得两边走散。它只查"产品里还有没有这个锚点"——命中数非零不等于样式正确，命中 0 则一定没生效。版本标记同时从写死的 `2.0.89 rc2-verified` 改成在激活处统一写 `2.2.0 adapt-0.2.0-rc.2`（2.1.0 的包曾经报的是 2.0.89）。
 
+**八、DSTT 设置：0.2.0 把整套机制换掉了，而且换的是结构不是名字。**
+
+症状是宿主端日志里一句 `settings.register failed … settingsCtx.settings.register is not a function`，加上面板六个开关**重启即回默认**。查下去发现产品侧改了四件事：
+
+| 事实 | 证据 |
+|---|---|
+| `settings.register()` **整个被删除** | 整个安装目录里 **0 处** |
+| 命名空间 = **profile 条目 id** | `ns: entry.options.id` |
+| 结构 = 插件导出的 **`Config`** | `schema(entry) { return entry.fiber?.runtime?.Config }`，而 cordis 是 `runtime = { …, Config: plugin.Config }` |
+| 只有标 `.volatile()` 的字段可写 | `Schema.prototype.volatile = … this.extra("volatile", true)`；写路径 `if (form === void 0) return []` |
+| 写入落进 **profile 补丁文件** | `configEditor.edit(entry, …)`；`settings.yaml` 在 0.2.0 里甚至不存在 |
+
+照此改了五处：8 个字段全部标 `.volatile()`；导出 `Config` **并同时挂到 `apply` 上**（`runtime` 是模块命名空间还是那个函数本身属于实现细节，不值得赌）；命名空间改为**运行时按候选表解析**（`ui-skin-deepseek-style` → `dsh-deepseek-style-theme` → `deepseek-style-theme`），不再写死字面量；删掉已死的 `register` 调用；失败路径改成**说清楚**——把服务实际提供的命名空间列出来。
+
+**真正卡住的那一步是时序，不是接线**：设置服务的 `describe()` 只列出 **已经 ACTIVE**（`fiber.state === 2`）的条目，而插件是在**自己的激活过程中**去问的，那一刻自己那条还是 `LOADING`（实测 `state === 1`，同时 `runtime.Config` 明明是 `function`）。所以开机那次解析注定为空。取值路径本身是惰性的（每次调用重新解析），运行期一直是对的；坏的只有开机自检与老 mode 值迁移。改为**退避重试**（40 × 500ms），到点仍没有才出声。
+
+副作用要知道：**设置现在存进 `cordis.patch.yml`**。启动器若在每次启动时重写那份补丁，设置就会被抹掉——需要真机重启确认（本条未验证）。
+
 ### 验证
 - `node --check`：`lib/index.js`、`lib/client.js` 通过。
-- `tools/parse-smoke.mjs` 12 文件、`tools/bg-recipes-smoke.mjs` 82/82、`tools/dstt-schema-smoke.mjs` 29/29、`tools/bridge-smoke.mjs` 26/26。
+- `tools/parse-smoke.mjs` 12 文件、`tools/bg-recipes-smoke.mjs` 82/82、`tools/dstt-schema-smoke.mjs` **30/30**（原 29，新增"每个字段都必须标 volatile"这条不变量）、`tools/bridge-smoke.mjs` 26/26。
 - 真机（官方桌面 0.2.0-rc.2，`link:` 安装）：流体背景回归（对话区 `#f6f7fb` → `#e7edfa`）；侧栏玻璃、输入卡玻璃、用户气泡玻璃、标题栏按钮界线逐项由用户肉眼确认。
+- 0.2.0 的 web 构建（npm 包 0.2.0-rc.2，独立 `DSH_HOME` + 端口 3099，Playwright headed 真 Chrome）：设置**端到端读写通过**——`dstt.mode.get` 从 `{"ok":false,"error":{"message":"settings service unavailable"}}` 变成 `ok:true`，改 `mode`+`glassStyle` 后重读确实回来，再复位。宿主端日志由"no settings entry…"变为**空**。
 - CSS 结构体检：11 段模板字符串逐段查括号平衡与断头规则（临时检查，脚本在 `_compat`）。
 - 两条新的**反向断言**进了 `bg-recipes-smoke`：PATCH 块里不许再出现 `:has(> [data-composer-card])`，输入卡规则里不许再出现 `position:`——这两条都是本版踩过的坑。
 

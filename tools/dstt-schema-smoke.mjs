@@ -45,15 +45,18 @@ const check = (name, ok, detail) => {
 const mod = await import(new URL('file://' + target).href);
 
 let route = null;
-let registered = null;
 let mutated = null;
 
+// dsh 0.2.0 removed `settings.register()` and moved the namespace onto the
+// profile entry: the id IS the namespace, and the shape is read off the
+// plugin's exported `Config`. So there is nothing to capture from a register
+// call any more -- the fixture reports the namespace the product would, and the
+// schema under test is the export itself.
+const DSTT_ENTRY_ID = 'ui-skin-deepseek-style';
+
 const settings = {
-	register(ns, schema) {
-		registered = { ns, schema };
-	},
 	describe() {
-		return [{ ns: 'deepseek-style-theme', value: { mode: 'peakvalley-redgreen' } }];
+		return [{ ns: DSTT_ENTRY_ID, value: { mode: 'peakvalley-redgreen' }, revision: 1 }];
 	},
 	mutate(ns, ops) {
 		mutated = { ns, ops };
@@ -80,11 +83,25 @@ const makeCtx = () => ({
 const ctx = makeCtx();
 mod.apply(ctx);
 
-check('a settings schema was registered for the DSTT namespace',
-	registered !== null && registered.ns === 'deepseek-style-theme',
-	registered === null ? 'nothing captured' : registered.ns);
+const Config = mod.Config;
 
-if (registered === null || route === null) {
+check('the plugin exports its settings schema as Config',
+	Config !== null && Config !== undefined && typeof Config === 'function',
+	Config === null || Config === undefined ? 'not exported' : typeof Config);
+
+// 0.2.0's settings service refuses to write any field that is not marked
+// volatile, and reports it as `Plugin entry "..." has no volatile fields` --
+// a message that says nothing about the plugin that forgot the marker. Pin it
+// here instead: the section still renders without it, so nothing else notices.
+const volatileFields = Config !== null && Config !== undefined && Config.dict !== undefined
+	? Object.entries(Config.dict).filter(([, field]) => field !== null && field !== undefined && field.meta !== undefined && field.meta.volatile === true).map(([key]) => key)
+	: [];
+const schemaFields = Config !== null && Config !== undefined && Config.dict !== undefined ? Object.keys(Config.dict) : [];
+check('every settings field is marked volatile (0.2.0 refuses writes otherwise)',
+	schemaFields.length > 0 && volatileFields.length === schemaFields.length,
+	`volatile ${volatileFields.length}/${schemaFields.length}`);
+
+if (Config === null || Config === undefined || route === null) {
 	console.log('\nSMOKE FAILED (no schema or route registered)');
 	process.exit(1);
 }
@@ -114,7 +131,7 @@ const applyOps = (start, ops) => {
 /** Validate a stored document the way `register()` does on the next boot. */
 const validates = (doc) => {
 	try {
-		registered.schema(doc);
+		Config(doc);
 		return { ok: true };
 	} catch (error) {
 		return { ok: false, why: String(error.message).split('\n')[0] };
@@ -146,7 +163,14 @@ for (const value of ['narrow', 'wide', 'off', 'origin']) {
 }
 
 // The default must validate too: it is what an untouched settings file resolves to.
-const defaultDoc = applyOps({}, [{ op: 'set', path: ['composerRefraction'], value: registered.schema({}).composerRefraction }]);
+// A `.volatile()` field resolves to a REFERENCE, not a raw value -- the product
+// unwraps it with `plainConfig(value.get())` before it crosses any wire. Read the
+// default the same way, or this compares a reference object against a schema that
+// wants a string id.
+const resolvedDefault = Config({});
+const rawDefault = resolvedDefault.composerRefraction;
+const defaultValue = rawDefault !== null && typeof rawDefault === 'object' && typeof rawDefault.get === 'function' ? rawDefault.get() : rawDefault;
+const defaultDoc = applyOps({}, [{ op: 'set', path: ['composerRefraction'], value: defaultValue }]);
 check('the schema default validates against the schema',
 	validates(defaultDoc).ok, JSON.stringify(defaultDoc));
 
