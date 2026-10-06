@@ -107,6 +107,26 @@ spot.style.transform = '... scale(1.015)';                    // ④ 又改变 r
 
 **同批修掉的另一个独立毛病：本 bundle 无法被反复求值。** 它是经典脚本 + 全局 `const dshDeepseekStyleThemeFactory`，第二次求值在**声明那一行**就抛 `already declared`，抛在 `__ModuleLoader__.load()` 之前，于是新代码完全注册不进去。桌面端有客户端插件热重载，所以**从第二次改文件起，页面上跑的一直是第一次成功求值的那份 JS**（样式早在 DOM 里，看着仍有主题），改动静默失效、只能手动 `Ctrl+R`。已包成 IIFE（名字进函数作用域），并实测"同一文件连求值两次都通过"。
 
+**十、标题栏：样子恢复原样，切换交还官方（需求第 9 条 + "另有" + 第 7 条）。**
+
+2.0.90 里标题栏这一整套是写死 `.wSkVaW_*` 的，语义化时**整块丢了**——丢掉的不只是样子，其中一条修的是**真 bug**：产品的列宽抓手是 40px 宽、满高、`z-index:8` 的条，标题栏默认压在它下面，于是光标落在标题栏自己的盒子里也会变成 `col-resize`，**栏里的控件点不到**。`z-index:9` 就是把栏提到抓手之上。
+
+按结构重新认（不写哈希）：标题栏 = 直接子元素里有 `_headerLeading`、且内部有 `_headerActions` 的那一层；标签页 = 同层的 `_tabs`；单个标签 = `_tab`/`_tabActive`；路径 = `_crumb`。恢复的东西：悬浮胶囊（`position:absolute` + `top:8/left:24/right:24` + hover 变 `999px` 圆角 + `::before` 玻璃）、`titleRow`/`headerLeading` 两层包装 `display:contents` **压平成单行**（不压平标签页会留在第二行、胶囊变成两行高的块）、标签页胶囊与激活态、路径/品牌胶囊、分裂按钮悬停、语言开关 hover 展开、`_moreButton` 收成圆并**悬停标题栏才展开**（原来那条写的是 `:has(_moreButton)`，等于一直展开，形态不对）。
+
+**§3.7 的落地方式是"删掉接管"**：`watchHeaderInteraction` 那个函数已经死了——它里面的 `isTrajectory` 被写死成 `() => false`，而 `headerOf()` 的选择器要求 `_headerActions` 元素**自身**包含路径标签，在产品的真实结构里根本不成立。整块删除（含调用点与 `.dshome-swap` 那条 CSS），**标签页的"悬停才出现"改由纯 CSS `:hover` 驱动**：切换、active 全归官方，我们只画样子。
+
+**实测验证（真机，读计算样式而非源码）**：
+
+| 读数 | 静止 | 悬停标题栏 |
+|---|---|---|
+| 盒子 | `[80, 8, 696, 38]`（38px 单行悬浮条） | 同 |
+| `position` / `z-index` | `absolute` / **`9`** | 同 |
+| 圆角 | `0px` | **`999px`** |
+| `::before` | 背景透明、模糊 `none` | **`rgba(255,255,255,.45)` + `blur(20px)`** |
+| 标签页 | `display: none` | **`display: flex`** |
+
+**过程中的一个真教训**：第一版选择器写成 `:is(div):has(> [class*="_headerLeading"])`，而产品的标题栏元素是 **`<header>`**——28 条规则**一条都没匹配上**，代码里却"看着有"。这正是需求第二条点名不算数的那种情况（判据是用户看得见）。已改成与标签无关的 `:has(...)`，并加了一条自检断言守住它。
+
 ### 验证
 - `node --check`：`lib/index.js`、`lib/client.js` 通过。
 - `tools/parse-smoke.mjs` 12 文件、`tools/bg-recipes-smoke.mjs` 82/82、`tools/dstt-schema-smoke.mjs` **30/30**（原 29，新增"每个字段都必须标 volatile"这条不变量）、`tools/bridge-smoke.mjs` 26/26。

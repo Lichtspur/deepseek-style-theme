@@ -348,6 +348,29 @@ check('the composer tilt measures the layout box, not its own transform (2.2.0)'
 	&& !source.includes('spot.style.transformOrigin = (rect.width / 2)')
 	&& !source.includes('(clientX - rect.left) / rect.width - 0.5')
 	&& !source.includes('(clientY - rect.top) / rect.height - 0.5'));
+// 标题栏（需求第 9 条 + "另有"：功能对官方，风格/玻璃/按钮/悬停按原来的）。
+// 这里守的是一个实测踩过的坑：产品的标题栏元素是 <header>，不是 <div>。选择器一旦
+// 写成 `:is(div):has(...)`，整块 28 条规则会**一条都不匹配** —— 而需求对视觉的判据是
+// "用户肉眼看得到"，代码里有规则不算数，所以这种失效在自检里必须能被抓住。
+// 同时守住 §3.7：切换归官方，我们那个 watchHeaderInteraction 接管必须不在了。
+check('the header patch matches by structure and not by tag name (2.2.0 §2.4)', 
+	source.includes(':has(> [class*="_headerLeading"]):has([class*="_headerActions"])')
+	&& !source.includes(':is(div):has(> [class*="_headerLeading"]')
+	// 悬浮胶囊三件套：定位、压在列宽抓手之上的 z-index、悬停才出的玻璃
+	&& source.includes('top:8px;left:24px;right:24px;z-index:9')
+	&& source.includes(':hover{border-radius:999px}')
+	&& source.includes('backdrop-filter:blur(20px)')
+	// 压平两层包装，否则标签页留在第二行、胶囊变成两行高的块
+	&& source.includes('> :is([class*="_headerLeading"]){display:contents}')
+	&& source.includes(':is([class*="_titleRow"],[class*="_titleCluster"]){display:contents}')
+	// 标签页"悬停才出现"由纯 CSS 驱动，而不是那个已被删掉的 JS 类
+	&& source.includes(':hover :is([class*="_tabs"]){display:flex')
+	&& !source.includes('watchHeaderInteraction')
+	// 落在"JS 用法"上，不落在词本身：注释里提到这个名字是好事（它解释了为什么这里
+	// 由纯 CSS 驱动），不该被判成残留。
+	&& !source.includes("classList.add('dshome-swap')")
+	&& !source.includes("classList.contains('dshome-swap')")
+	&& !source.includes("classList.remove('dshome-swap')"));
 // 2.0.85 -- engagement is geometric. It used to require a `pointerover` whose
 // target sat inside the card, which is a chain of assumptions about product markup
 // the theme cannot verify (a wrapper with role=button, a swapped-in card node, an
