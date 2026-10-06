@@ -316,10 +316,38 @@ check('entering a control freezes the composer tilt instead of releasing it (2.0
 	&& source.includes('if (current !== spot || frozen) return;')
 	&& (source.match(/frozen = true;/g) ?? []).length >= 2
 	// The release survives in exactly one place: the pointer leaving the card's
-	// own box (plus the release pad). That rect guard is what keeps the effect off
-	// the hover loop.
-	&& source.includes('if (event.clientX >= rect.left - TILT_RELEASE_PAD && event.clientX <= rect.right + TILT_RELEASE_PAD')
+	// own box (plus the release pad). That guard is what keeps the effect off the
+	// hover loop.
+	&& source.includes('if (event.clientX >= g.left - TILT_RELEASE_PAD && event.clientX <= g.right + TILT_RELEASE_PAD')
 	&& source.includes('window.__dshomeTilt = ()'));
+
+// The hover loop, third round. 2.0.79 damped it by dropping TILT_SCALE to 1;
+// restoring the 1.015 lift brought it back -- damping was never the fix.
+// `getBoundingClientRect()` INCLUDES the transform this effect writes, so
+// normalising the cursor against it is a feedback path: the scale resizes the
+// rect -> the rect normalises the offset -> the offset picks the angle -> the
+// angle moves the rect. On the short composer that is a pixel or two and
+// invisible; on a card grown to its max-height by a long draft it is ~10px of
+// visible flapping at a few Hz. The fix measures with quantities a transform
+// cannot move -- the rect's CENTRE (invariant under a transform about the
+// centre, because under `perspective()` the centre plane sits at z=0) and
+// `offsetWidth`/`offsetHeight` (never include transforms) -- so nothing reads
+// last frame's transform and there is no loop left to damp.
+// Pinned here precisely because no smoke can grow a composer to 336px.
+check('the composer tilt measures the layout box, not its own transform (2.2.0)',
+	source.includes('const spotGeometry = (spot, rect) => {')
+	&& source.includes('const halfW = spot.offsetWidth / 2;')
+	&& source.includes('const halfH = spot.offsetHeight / 2;')
+	&& source.includes('const cx = rect.left + rect.width / 2;')
+	&& source.includes("spot.style.transformOrigin = g.halfW + 'px ' + g.halfH + 'px';")
+	&& source.includes('(clientX - g.cx) / (g.halfW * 2)')
+	// The old shape must be gone: no transform-origin off the scaled rect, and no
+	// half-range clamp normalised by it. (`rect.*` legitimately survives elsewhere
+	// -- the fluid canvas and the specular UV map -- so these are matched as the
+	// exact tilt expressions, not as "any rect use".)
+	&& !source.includes('spot.style.transformOrigin = (rect.width / 2)')
+	&& !source.includes('(clientX - rect.left) / rect.width - 0.5')
+	&& !source.includes('(clientY - rect.top) / rect.height - 0.5'));
 // 2.0.85 -- engagement is geometric. It used to require a `pointerover` whose
 // target sat inside the card, which is a chain of assumptions about product markup
 // the theme cannot verify (a wrapper with role=button, a swapped-in card node, an
