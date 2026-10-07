@@ -371,6 +371,15 @@ check('the header patch matches by structure and not by tag name (2.2.0 §2.4)',
 	&& !source.includes("classList.add('dshome-swap')")
 	&& !source.includes("classList.contains('dshome-swap')")
 	&& !source.includes("classList.remove('dshome-swap')"));
+// 表格的滚动容器：产品给它的是 `border-radius:999px` + `overflow:auto`。999px 的半径
+// 在一个 824×226 的盒子上每边要吃约 113px，而 auto 就在那条弧线上裁 —— 宽表格的左右
+// 两端会被**自己的容器**裁没（不是被浮层盖住）。实测：`<table>` 本身 radius=0px /
+// overflow=visible，问题全在它父层 `_tableScroll_* _tableFill_*` 上。
+// 改成 8px 是**我们主动覆盖产品的设计**，不在《逐项决定》11 条内，由用户点名选择（甲）。
+// 断言它，是因为它属于"产品换做法时不会跟着变"的那一类，得能被看见。
+check('the markdown table scroll container is not a pill (2.2.0, user-chosen)', 
+	source.includes(':is([class*="_tableScroll"]){border-radius:8px!important}')
+	&& source.includes('{ anchor: \'[class*="_tableScroll"], [class*="_scrollBody"]\''));
 // 2.0.85 -- engagement is geometric. It used to require a `pointerover` whose
 // target sat inside the card, which is a chain of assumptions about product markup
 // the theme cannot verify (a wrapper with role=button, a swapped-in card node, an
