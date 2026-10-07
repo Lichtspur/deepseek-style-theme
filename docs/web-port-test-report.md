@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 日期 | 2026-10-04 |
-| 被测插件 | `2.2.0 adapt-0.2.0-rc.2`（`link:` 到工作树，非 npm 包） |
+| 被测插件 | `2.1.90 adapt-0.2.0-rc.2`（`link:` 到工作树，非 npm 包） |
 | 被测产品 | npm 包的 `@deepseek-ai/dsh` **0.2.0-rc.2**，`dsh web`，profile `isotest` |
 | 环境 | 独立 `DSH_HOME`（`_compat/iso/home`）+ 独立端口 **3099**，不碰 3080 与 19387 |
 | 驱动 | 真 Chrome，**headed + 持久化 profile**（`D:\DeepSeek\dsh-webtest\chrome-profile`），CDP 级真实鼠标移动 |
@@ -47,7 +47,7 @@ _centerCol 1  _headerActions 1    _previewBadge 1    _fish 2
 
 ## 二、插件在 web 上确实活着（已确认）
 
-- `window.__dshomeBuild` = `2.2.0 adapt-0.2.0-rc.2`
+- `window.__dshomeBuild` = `2.1.90 adapt-0.2.0-rc.2`
 - 注入 **12 张**样式表：`theme.css` `actions.css` `glass.css` `liquid-glass.css`
   `menu-glass.css` `file-card-menu.css` `subagent-panel.css` + 5 张 `patch.*`
 - 侧栏：`rgba(255,255,255,0.3)` + `blur(24px) saturate(1.75) brightness(1.05) contrast(1.02)` ← 液态配方生效
@@ -86,7 +86,7 @@ if (descriptor === null) return failure("internal", "settings service unavailabl
 **影响**：DSTT 面板的六个开关全部不持久化，重启回到默认值。
 **旁证**：桌面端的 `C:\Users\Nove\.dsh\settings.yaml` **不存在**，isotest 家的 `settings.yaml`
 **是空文件** —— 两边都没有任何 DSTT 设置落盘，说明桌面端很可能同病。
-**这一条需要单独修**（找到 0.2.0 的 settings 注册 API），不在 2.2.0 已交付的范围内。
+**这一条需要单独修**（找到 0.2.0 的 settings 注册 API），不在 2.1.90 已交付的范围内。
 
 ### 3.2 流体背景在 web 上没有挂载（未解释）
 

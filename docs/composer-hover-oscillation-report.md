@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 报告日期 | 2026-10-03（2026-10-06 结案，见第九节） |
-| 涉及版本 | DSTT `2.2.0`（工作树，link: 装进 desktop profile） |
+| 涉及版本 | DSTT `2.1.90`（工作树，link: 装进 desktop profile） |
 | 产品 | `@deepseek-ai/dsh-desktop` 0.2.0-rc.2，Electron 44.0.0，Windows |
 | 状态 | **已解决** —— 根因是几何自反馈环，已断环并经真机 A/B 验证（同高度下摆幅由 ±10px 降到 0） |
 | 优先级 | 已关闭 |

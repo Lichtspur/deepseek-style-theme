@@ -334,7 +334,7 @@ check('entering a control freezes the composer tilt instead of releasing it (2.0
 // `offsetWidth`/`offsetHeight` (never include transforms) -- so nothing reads
 // last frame's transform and there is no loop left to damp.
 // Pinned here precisely because no smoke can grow a composer to 336px.
-check('the composer tilt measures the layout box, not its own transform (2.2.0)',
+check('the composer tilt measures the layout box, not its own transform (2.1.90)',
 	source.includes('const spotGeometry = (spot, rect) => {')
 	&& source.includes('const halfW = spot.offsetWidth / 2;')
 	&& source.includes('const halfH = spot.offsetHeight / 2;')
@@ -353,7 +353,7 @@ check('the composer tilt measures the layout box, not its own transform (2.2.0)'
 // 写成 `:is(div):has(...)`，整块 28 条规则会**一条都不匹配** —— 而需求对视觉的判据是
 // "用户肉眼看得到"，代码里有规则不算数，所以这种失效在自检里必须能被抓住。
 // 同时守住 §3.7：切换归官方，我们那个 watchHeaderInteraction 接管必须不在了。
-check('the header patch matches by structure and not by tag name (2.2.0 §2.4)', 
+check('the header patch matches by structure and not by tag name (2.1.90 §2.4)', 
 	source.includes(':has(> [class*="_headerLeading"]):has([class*="_headerActions"])')
 	&& !source.includes(':is(div):has(> [class*="_headerLeading"]')
 	// 悬浮胶囊三件套：定位、压在列宽抓手之上的 z-index、悬停才出的玻璃
@@ -377,7 +377,7 @@ check('the header patch matches by structure and not by tag name (2.2.0 §2.4)',
 // overflow=visible，问题全在它父层 `_tableScroll_* _tableFill_*` 上。
 // 改成 8px 是**我们主动覆盖产品的设计**，不在《逐项决定》11 条内，由用户点名选择（甲）。
 // 断言它，是因为它属于"产品换做法时不会跟着变"的那一类，得能被看见。
-check('the markdown table scroll container is not a pill (2.2.0, user-chosen)', 
+check('the markdown table scroll container is not a pill (2.1.90, user-chosen)', 
 	source.includes(':is([class*="_tableScroll"]){border-radius:8px!important}')
 	&& source.includes('{ anchor: \'[class*="_tableScroll"], [class*="_scrollBody"]\''));
 // 2.0.85 -- engagement is geometric. It used to require a `pointerover` whose
@@ -492,7 +492,7 @@ check('the line under the composer carries the lens touch (2.0.87)',
 	source.includes("const LEAN_ATTR = 'data-dshome-leaning';")
 	&& source.includes('document.documentElement.setAttribute(LEAN_ATTR,')
 	&& source.includes('document.documentElement.removeAttribute(LEAN_ATTR)'));
-// 2.2.0 改了落点，而且是**用户实测驱动**的：融合板要求把玻璃画在"能同时框住输入卡
+// 2.1.90 改了落点，而且是**用户实测驱动**的：融合板要求把玻璃画在"能同时框住输入卡
 // 与统计行"的那一层上，但在 0.2.0 上那一层是卡片的父元素——实测 418×158（左右各多
 // 16px 内边距、下面多出统计行所在的 dock 386×56），用户看到的是「对话框被撑大了」，
 // 连鼠标随动的倾斜也摊到那一大块上。
@@ -502,7 +502,7 @@ check('the line under the composer carries the lens touch (2.0.87)',
 // `position` 那条反向断言是 2026-10-03 的教训：给卡片加 position:relative（当时是为了
 // 给 ::before 做定位锚点，后来方案不用 ::before 了）会顶掉产品自己的定位方式，
 // 用户看到的是「鼠标放到发送按钮上，输入框大幅上移」。玻璃只许改颜色与模糊。
-check('the composer glass sits on the card itself and never resizes or repositions it (2.2.0)',
+check('the composer glass sits on the card itself and never resizes or repositions it (2.1.90)',
 	source.includes('anchor: "[data-composer-card]"')
 	&& source.includes("const COMPOSER_PLATE = '[data-composer-card]';")
 	&& source.includes('${COMPOSER_PLATE}{background:rgba(255,255,255,.42)!important;')
