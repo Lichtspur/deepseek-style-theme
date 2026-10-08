@@ -144,6 +144,17 @@ spot.style.transform = '... scale(1.015)';                    // ④ 又改变 r
 
 这是**主动覆盖产品的设计**，不在《逐项决定》11 条之内，由用户在甲/乙/丙三案中点名选甲；注释里也标了，因为它属于"产品换做法时不会跟着变"的那一类。实测落地：计算圆角由 `999px` 变为 `8px`，`overflow` 保持产品的 `auto`，零页面错误。
 
+**十二、发布方式：2027 年 1 月前必须迁移（写在这里，免得那天突然发不出去）。**
+
+npm 于 2026 年 8 月起收紧 bypass-2FA 令牌，**2027 年 1 月起彻底禁止用 granular access token 直接发布**。本仓库 2.1.90 仍是用这个方式发的（账号未配 TOTP 验证器，走的是 `npm publish --auth-type=web`，由浏览器确认），但这条路有明确的失效日期。到期前的迁移方向：
+
+| 方式 | 做法 | 说明 |
+|---|---|---|
+| **Trusted Publishing** | CI 里用 OIDC 换短期凭据 | npm 官方推荐，不用长期令牌 |
+| **分段发布** | 令牌权限选 `Read and write (stage only)`，用 `npm stage publish` 推到暂存区，再在浏览器里批准 | npm 给 bypass 令牌的替代建议；注意本机 npm 11.13.0 尚无 `stage` 子命令，需要先升级 |
+
+另一个可选项是把账号 2FA 模式从 `Authorization and writes` 改成 `Authorization only`：发布不再需要验证码，登录仍要 2FA。**这是本次实际用于发布的路径依赖的解药**——记下来，因为 2027 年 1 月之后 `--auth-type=web` 是否仍可用于 direct publish 官方没有承诺。
+
 ### 验证
 - `node --check`：`lib/index.js`、`lib/client.js` 通过。
 - `tools/parse-smoke.mjs` 12 文件、`tools/bg-recipes-smoke.mjs` 82/82、`tools/dstt-schema-smoke.mjs` **30/30**（原 29，新增"每个字段都必须标 volatile"这条不变量）、`tools/bridge-smoke.mjs` 26/26。
