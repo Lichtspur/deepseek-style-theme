@@ -371,6 +371,18 @@ check('the header patch matches by structure and not by tag name (2.1.90 §2.4)'
 	&& !source.includes("classList.add('dshome-swap')")
 	&& !source.includes("classList.contains('dshome-swap')")
 	&& !source.includes("classList.remove('dshome-swap')"));
+
+// 标签页胶囊曾经写成裸的 `[class*="_tab"]`，于是任何类名含 `_tab` 的东西都被套上
+// 999px 胶囊 + 半透明品牌底：`_tableScroll`（`_table` 的前四个字符就是 `_tab`）让表格
+// 容器变成蓝色圆角块；文件预览那种 `_tab*` 面板则又圆又透。两个症状、一条规则。
+// 现在限定在会话标题栏之内，这条断言守住它不许再变回裸选择器。
+const cssOnly = source.replace(/\/\*[\s\S]*?\*\//g, '');
+check('the tab pill rules stay inside the conversation header (2.1.9x)', 
+	// 去掉 CSS 注释后再看：凡是含 [class*="_tab"] 的那一行，都必须同时带标题栏守卫。
+	// 裸选择器一旦回来，这一条就会挂 —— 而它的后果（表格容器变蓝、预览面板又圆又透）
+	// 在源码里完全看不出来，只有真机上才显形。
+	cssOnly.split('\n').filter((line) => line.includes('[class*="_tab"]')).every((line) => line.includes('_headerLeading'))
+	&& source.includes(':has(> [class*="_headerLeading"]):has([class*="_headerActions"]) :is([class*="_tab"]):not([class*="_tabs"])'));
 // 表格的滚动容器：产品给它的是 `border-radius:999px` + `overflow:auto`。999px 的半径
 // 在一个 824×226 的盒子上每边要吃约 113px，而 auto 就在那条弧线上裁 —— 宽表格的左右
 // 两端会被**自己的容器**裁没（不是被浮层盖住）。实测：`<table>` 本身 radius=0px /
@@ -378,7 +390,9 @@ check('the header patch matches by structure and not by tag name (2.1.90 §2.4)'
 // 改成 8px 是**我们主动覆盖产品的设计**，不在《逐项决定》11 条内，由用户点名选择（甲）。
 // 断言它，是因为它属于"产品换做法时不会跟着变"的那一类，得能被看见。
 check('the markdown table scroll container is not a pill (2.1.90, user-chosen)', 
-	source.includes(':is([class*="_tableScroll"]){border-radius:8px!important}')
+	// 用正则守"8px 这个小圆角"这个意图，而不是某个精确字符串：这条规则后面还会长出
+	// 别的声明（比如 color:inherit），写成 includes 精确匹配会被自己的尾巴绊倒。
+	/\[class\*="_tableScroll"\]\)\{border-radius:8px!important/.test(source)
 	&& source.includes('{ anchor: \'[class*="_tableScroll"], [class*="_scrollBody"]\''));
 // 2.0.85 -- engagement is geometric. It used to require a `pointerover` whose
 // target sat inside the card, which is a chain of assumptions about product markup
