@@ -16,6 +16,35 @@ npm 也是四者里最省事的一条：不走 `git clone`（绕开代理 / 证�
 
 ---
 
+## v2.1.93 — 2026-10-14
+
+### 文案：把"web 专用"改成"桌面与 web 通用"，并说清桌面端到底该怎么装
+
+插件市场的列表与安装提示都指向 web，用户当场就问："明明是桌面端，却运行的 web 端代码？"查下来是两件事，一件是我们的、一件是市场的默认值。
+
+**① 那句「为 dsh web GUI 复刻…」是我们自己写的，而且过期了。**
+
+它来自 README 第一段与 `package.json` 的 `description`，写于 1.43 / 2.0.90 时期 —— 那时插件确实只针对 `dsh web`。现在目标是桌面应用。**市场只是照搬我们的文案**，所以这是该我们改的。
+
+顺带纠正一个容易混的概念：**插件的代码不是"web 端的代码"**。`lib/client.js` 跑在渲染进程里，桌面应用的渲染进程与 `dsh web` 的浏览器加载的是**同一份**；web / desktop 的区别只在**宿主应用**，不在插件。
+
+**② 市场里那行 `dsh plugin --profile web add …` 是市场按默认 profile 生成的，对桌面端不成立。**
+
+桌面端的 profile 由 Electron 应用**独占管理**，CLI 会直接拒绝：
+
+```
+$ dsh --profile desktop --dump-config
+error: profile "desktop" is managed exclusively by the Electron application
+```
+
+所以桌面端只能从**应用内置的插件市场**安装；那行命令只对 `dsh web` 用户有效。README 的「安装」一节现在用一张表把两端分开写清楚，并说明了"两端加载同一份插件代码、差别只在 profile 归属"。
+
+### 验证
+
+`parse-smoke` 12 文件 / `bg-recipes-smoke` 86 条 / `dstt-schema-smoke` 30 / `bridge-smoke` 26 —— 四条全绿。
+
+---
+
 ## v2.1.92 — 2026-10-14
 
 ### 标题栏底色跟随峰谷：波峰红、其余沿用原来的浅蓝

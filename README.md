@@ -1,6 +1,6 @@
 # DeepSeek Style Theme
 
-为 DeepSeek Harness Web GUI 复刻 DeepSeek 官网视觉的主题皮肤插件。
+为 **DeepSeek Harness** 复刻 DeepSeek 官网视觉的主题皮肤插件 —— **桌面应用与 `dsh web` 通用**（两端加载的是同一份 `lib/client.js`，差别只在宿主应用与 profile 的管理方式，见「安装」一节）。
 
 ## 鸣谢
 
@@ -193,9 +193,18 @@ card=700/757 … under=div.wSkVaW_widthHandle hovCard=0     ← 倾斜解除、�
 
 ## 安装
 
-前置要求：`node` 与 `pnpm`（`dsh plugin` 命令只是 pnpm 的转发器，二者需在 PATH 中）。安装后重启 web 应用（`dsh web`）即可生效。
+> **装在哪一端？先看这张表** —— 两端加载的是**同一份插件代码**（`lib/client.js` 跑在渲染进程里），差别只在宿主应用与 profile 的管理方式：
+>
+> | 你用的是 | 怎么装 | 为什么 |
+> |---|---|---|
+> | **桌面应用**（`@deepseek-ai/dsh-desktop`） | **从应用内置的插件市场安装**（设置 → 插件市场） | 桌面端的 profile 由 Electron 应用**独占管理**，CLI 会直接拒绝：`profile "desktop" is managed exclusively by the Electron application`。所以 `dsh plugin --profile …` 这条路在桌面端**不通** |
+> | **`dsh web`**（命令行起的 web 端） | `dsh plugin --profile web add dsh-deepseek-style-theme` | 这一端的 profile 归 CLI 管，`--profile web` 是正确的 |
+>
+> 插件市场里那行 `dsh plugin --profile web add …` 是**市场按默认 profile 生成的**，只对 `dsh web` 成立；桌面端照它敲会装进一个桌面应用根本不读的 profile。
 
-> **安装属性（第三方）**：本插件是第三方适配的皮肤插件，**不是 DeepSeek 官方插件**。所有安装方式（本地源码 / GitHub / 本地 tgz）默认都作为**第三方包**装入 web profile 的 `node_modules`（真实目录，`file:` 依赖）并登记进 `dsh.profile.bundles`——**绝不写入或链接官方 dsh 安装目录**（如全局 CLI 的 `node_modules`，官方升级会清空其中的第三方包）。若因旧版链式安装导致插件消失/失效，重跑一次 `dsh plugin --profile web add <源>` 即会以独立目录重建。
+前置要求（仅 `dsh web` 端需要）：`node` 与 `pnpm`（`dsh plugin` 命令只是 pnpm 的转发器，二者需在 PATH 中）。安装后重启对应的应用即可生效。
+
+> **安装属性（第三方）**：本插件是第三方适配的皮肤插件，**不是 DeepSeek 官方插件**。所有安装方式（本地源码 / GitHub / 本地 tgz）默认都作为**第三方包**装入 profile 的 `node_modules`（真实目录，`file:` 依赖）并登记进 `dsh.profile.bundles`——**绝不写入或链接官方 dsh 安装目录**（如全局 CLI 的 `node_modules`，官方升级会清空其中的第三方包）。若因旧版链式安装导致插件消失/失效，重跑一次 `dsh plugin --profile web add <源>` 即会以独立目录重建。
 
 ### 先读：四个高频坑
 
