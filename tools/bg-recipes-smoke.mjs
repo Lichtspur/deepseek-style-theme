@@ -178,19 +178,21 @@ check('the background-recipe CSS comment holds no backtick',
 // backtick to the FIRST backtick followed by a semicolon finds the intended
 // terminator (a stray one inside prose is followed by a letter or a bracket), and
 // anything stray in between is counted and fails the check.
-const CORE_OPEN = 'const CORE_CSS = `';
-const coreOpen = source.indexOf(CORE_OPEN);
-let coreTerminator = -1;
-if (coreOpen !== -1) {
-	for (let i = coreOpen + CORE_OPEN.length; i < source.length; i += 1) {
-		if (source[i] === '`' && source.slice(i, i + 2) === '`;') { coreTerminator = i; break; }
+const cssTemplateOpens = [...source.matchAll(/const\s+[A-Za-z_]*CSS\s*=\s*`|css:\s*`/g)]
+	.map((m) => m.index + m[0].length);
+// 终止符的判据要放宽：`const X_CSS = \`` 那些以 `; 收口，而各个补丁块的 css: ` 以 ` }, 收口
+// （反引号后面跟的是空格和花括号，不是分号）—— 旧版本只认 `;，所以只能管 CORE_CSS 一块。
+const templateStrays = cssTemplateOpens.map((from) => {
+	let end = -1;
+	for (let i = from; i < source.length; i += 1) {
+		if (source[i] === '`' && /^`\s*[;,}]/.test(source.slice(i, i + 3))) { end = i; break; }
 	}
-}
-const coreStray = coreTerminator === -1
-	? -1
-	: (source.slice(coreOpen + CORE_OPEN.length, coreTerminator).match(/`/g) ?? []).length;
-check('the CORE_CSS template literal closes where it should: no stray backtick',
-	coreTerminator !== -1 && coreStray === 0, 'stray backticks before the terminator: ' + coreStray);
+	return end === -1 ? -1 : (source.slice(from, end).match(/`/g) ?? []).length;
+});
+const strayTotal = templateStrays.reduce((n, r) => n + (r < 0 ? 1000 : r), 0);
+check('every CSS template literal closes where it should: no stray backtick',
+	cssTemplateOpens.length > 1 && templateStrays.every((r) => r === 0),
+	cssTemplateOpens.length + ' templates, stray backticks: ' + strayTotal);
 
 // 2.0.74: `mediump` made the display shader's sin-hash noise collapse into
 // visible drifting squares on GPUs that implement 16-bit floats for real (an
