@@ -30,6 +30,7 @@
     "lib/index.js",
     "lib/client.js",
     "cordis.patch.yml",
+    "assets/readme",
     "README.md",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md"

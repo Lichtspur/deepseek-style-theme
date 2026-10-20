@@ -2,6 +2,18 @@
 
 为 **DeepSeek Harness** 复刻 DeepSeek 官网视觉的主题皮肤插件 —— **桌面应用与 `dsh web` 通用**（两端加载的是同一份 `lib/client.js`，差别只在宿主应用与 profile 的管理方式，见「安装」一节）。
 
+## 预览
+
+三张**实机截图**（DeepSeek Harness 桌面应用，保留 Windows 标题栏），同一套主题的三种相位 —— 品牌色与页面底色一起变，不只是按钮换色：
+
+| 峰时段 · 鲜红 `#F5222D` | 谷时段 · 蓝色（深色主题） | 谷时段 · 蓝色（浅色主题） |
+|---|---|---|
+| ![峰时段：品牌色与底色转为鲜红](assets/readme/preview-peak-red.png) | ![谷时段：蓝色品牌色 + 深色主题](assets/readme/preview-valley-blue-dark.png) | ![谷时段：蓝色品牌色 + 浅色主题](assets/readme/preview-valley-blue-light.png) |
+
+> 四种主题模式与上图的对应关系：**峰谷红蓝**（默认）＝ 峰段见左图，谷段见第 2、3 张（深色 / 浅色各一张）；**峰谷红绿** 只是把谷段的蓝换成绿；**常态蓝** 与第 2、3 张同色，只是不随峰谷切换；**常态绿** 把品牌色与页面底色整体换成绿色、不随峰谷切换（未截图）。峰段为北京时间 9:00–12:00、14:00–18:00，周六周日全天非峰段。
+>
+> 截图里的侧栏文字做了模糊处理；流体背景是实时 WebGL2 动画，静态图只能定格其中一帧。
+
 ## 鸣谢
 
 本插件的两块核心视觉——**流体背景**与**玻璃质感**——都不是从零写出来的，它们分别来自下面两个上游项目。没有它们，这个主题不会有现在这个样子：
@@ -346,6 +358,7 @@ node tools/gui-probe.mjs --models --file-card
 ├── package.json                    # dsh bundle 元数据
 ├── cordis.patch.yml                # insert 插件行
 ├── THIRD-PARTY-NOTICES.md          # 第三方许可原文（mineradio / harness-background）
+├── assets/readme/                  # README 预览图（随包发布，npm 页面的 README 也靠它显示）
 ├── releases/                       # 发布产物（tgz 归档）
 ├── tools/                          # 自测工具（不随包发布）
 │   ├── bridge-smoke.mjs            # 宿主端私有 RPC 通道冒烟测试
