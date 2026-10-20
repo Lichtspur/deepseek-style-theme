@@ -13,7 +13,27 @@ DeepSeekHarness Desktop端：插件 - 添加插件 - 粘贴
 ```
 dsh-deepseek-style-theme
 ```
-即可安装
+### 从命令行窗口安装：
+1. 打开DeepSeekHarness Desktop端
+2. 从powershell安装
+```powershell 
+$c = @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+       'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+       'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall') |
+     ForEach-Object { Get-ChildItem $_ -ErrorAction SilentlyContinue } |
+     ForEach-Object { Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue } |
+     Where-Object { $_.DisplayName -like 'DeepSeek Harness*' -and $_.InstallLocation }
+$D = $c | Sort-Object DisplayVersion -Descending |
+     ForEach-Object { Join-Path $_.InstallLocation.Trim('"') 'resources\runtime\cli\bin\dsh.cmd' } |
+     Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $D) {
+  $exe = (Get-Process 'DeepSeek Harness' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1).Path
+  if ($exe) { $D = Join-Path (Split-Path $exe) 'resources\runtime\cli\bin\dsh.cmd' }
+}
+
+& $D plugin --profile desktop add github:Lichtspur/deepseek-style-theme
+```
+逻辑：为解决CMD无法直接安装Desktop的问题，通过DSH安装时的注册表读取到DSH目录，拼接调用dsh.cmd安装插件
 
 ## 特性
 
