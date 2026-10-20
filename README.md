@@ -7,17 +7,13 @@
 为 **DeepSeek Harness** 复刻 DeepSeek 官网视觉的主题皮肤插件，主要为Desktop端适配。
 
 ### 从官方插件系统安装：
+<img width="750" height="665" alt="image" src="https://github.com/user-attachments/assets/4f5a3a69-7cae-4a49-805f-074aebfc4919" />
 
 DeepSeekHarness Desktop端：插件 - 添加插件 - 粘贴
 ```
 dsh-deepseek-style-theme
 ```
 即可安装
-### 从 npm（推荐）
-
-```bash
-dsh plugin --profile web add dsh-deepseek-style-theme
-```
 
 ## 特性
 
