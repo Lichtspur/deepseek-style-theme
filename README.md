@@ -1,7 +1,7 @@
 # DeepSeek Style Theme
 
-![DeepSeek Style Theme 首屏预览：浅色主题 + 蓝色品牌色](assets/readme/preview-valley-blue-light.png) | ![峰时段：品牌色与底色转为鲜红](assets/readme/preview-peak-red.png) | ![谷时段：蓝色品牌色 + 深色主题](assets/readme/preview-valley-blue-dark.png) |
-
+![DeepSeek Style Theme 首屏预览：浅色主题 + 蓝色品牌色](assets/readme/preview-valley-blue-light.png)  ![峰时段：品牌色与底色转为鲜红](assets/readme/preview-peak-red.png)  ![谷时段：蓝色品牌色 + 深色主题](assets/readme/preview-valley-blue-dark.png) 
+（不包含右下角那只小鲸鱼 dsh-whale-widget）
 ## 安装方式
 
 为 **DeepSeek Harness** 复刻 DeepSeek 官网视觉的主题皮肤插件，主要为Desktop端适配。
@@ -10,7 +10,7 @@
 
 DeepSeekHarness Desktop端：插件 - 添加插件 - 粘贴
 ```
-deepseek-style-theme
+dsh-deepseek-style-theme
 ```
 即可安装
 ### 从 npm（推荐）
